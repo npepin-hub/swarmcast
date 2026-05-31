@@ -120,7 +120,57 @@ new p5((p) => {
       b.edges();
       b.draw(p, cfg);
     }
+    if (phase !== "idle") drawLabels(p);
   };
+
+  function drawLabels(p) {
+    // Compute centroid per role
+    const centroids = {};
+    const counts    = {};
+    for (let b of boids) {
+      if (!b.role) continue;
+      if (!centroids[b.role]) { centroids[b.role] = { x: 0, y: 0 }; counts[b.role] = 0; }
+      centroids[b.role].x += b.pos.x;
+      centroids[b.role].y += b.pos.y;
+      counts[b.role]++;
+    }
+
+    p.textFont("system-ui, sans-serif");
+    p.textSize(10);
+    p.textAlign(p.CENTER, p.BOTTOM);
+
+    for (const role of Object.keys(centroids)) {
+      const n   = counts[role];
+      const cx  = centroids[role].x / n;
+      const cy  = centroids[role].y / n;
+      const hue = ROLE_HUES[role] ?? DEFAULT_HUE;
+
+      const label  = role.replace(/_/g, " ");
+      const tw     = p.textWidth(label);
+      const bw     = tw + 14;
+      const bh     = 18;
+      const bx     = p.constrain(cx, bw / 2 + 4, W - bw / 2 - 4);
+      const by     = p.constrain(cy - 28, bh + 6, H - 6);
+
+      // Bubble fill
+      p.colorMode(p.HSB, 360, 255, 255, 255);
+      p.noStroke();
+      p.fill(hue, 160, 50, 200);
+      p.rect(bx - bw / 2, by - bh, bw, bh, 4);
+
+      // Tail pointer
+      p.triangle(
+        bx - 4, by,
+        bx + 4, by,
+        bx,     by + 7
+      );
+
+      // Label text
+      p.fill(hue, 80, 255, 240);
+      p.text(label, bx, by - 1);
+    }
+    p.textAlign(p.LEFT, p.BASELINE);
+  }
 });
 
 // ── External API ──────────────────────────────────────────────────────────────
