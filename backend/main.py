@@ -83,7 +83,7 @@ async def run_forecast_pipeline(req: ForecastRequest) -> ForecastResult:
     async def emit(event: WSEventType, payload):
         await manager.broadcast(WSMessage(event=event, payload=payload))
 
-    contexts = build_context_bundle(req.team_a, req.team_b, req.competition_id)
+    contexts = await build_context_bundle(req.team_a, req.team_b, req.competition_id)
     result = await run_deliberation(
         req.match_query,
         req.team_a,

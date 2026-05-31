@@ -8,6 +8,7 @@ Each _call*() spins up the relevant npx server, sends initialize + tools/call
 over stdin, and returns the text content.  Results are cached 1h.
 """
 from __future__ import annotations
+import asyncio
 import json
 import os
 import subprocess
@@ -84,25 +85,36 @@ def _call_history(tool: str, params: dict) -> str:
     return text
 
 
-def build_context_bundle(
+async def build_context_bundle(
     team_a: str,
     team_b: str,
     group: str = "",
 ) -> dict[str, str]:
-    """Return context slices keyed by data_slice_id, sourced live from wc26-mcp."""
-    profile_a  = _call("get_team_profile",       {"team": team_a})
-    profile_b  = _call("get_team_profile",       {"team": team_b})
-    compare    = _call("compare_teams",           {"team_a": team_a, "team_b": team_b})
-    h2h          = _call("get_historical_matchups", {"team_a": team_a, "team_b": team_b})
-    hist_team_a  = _call_history("get_team",       {"name": team_a})
-    hist_team_b  = _call_history("get_team",       {"name": team_b})
-    matches_a    = _call("get_matches",            {"team": team_a})
-    matches_b    = _call("get_matches",            {"team": team_b})
-    news_a     = _call("get_news",                {"team": team_a, "limit": 5})
-    news_b     = _call("get_news",                {"team": team_b, "limit": 5})
-    injuries_a = _call("get_injuries",            {"team": team_a})
-    injuries_b = _call("get_injuries",            {"team": team_b})
-    standings  = _call("get_standings",           {"group": group} if group else {})
+    """Return context slices keyed by data_slice_id, sourced live from wc26-mcp.
+    All 13 MCP subprocess calls run concurrently via asyncio.gather.
+    """
+    (
+        profile_a, profile_b, compare, h2h,
+        hist_team_a, hist_team_b,
+        matches_a, matches_b,
+        news_a, news_b,
+        injuries_a, injuries_b,
+        standings,
+    ) = await asyncio.gather(
+        asyncio.to_thread(_call, "get_team_profile",        {"team": team_a}),
+        asyncio.to_thread(_call, "get_team_profile",        {"team": team_b}),
+        asyncio.to_thread(_call, "compare_teams",           {"team_a": team_a, "team_b": team_b}),
+        asyncio.to_thread(_call, "get_historical_matchups", {"team_a": team_a, "team_b": team_b}),
+        asyncio.to_thread(_call_history, "get_team",        {"name": team_a}),
+        asyncio.to_thread(_call_history, "get_team",        {"name": team_b}),
+        asyncio.to_thread(_call, "get_matches",             {"team": team_a}),
+        asyncio.to_thread(_call, "get_matches",             {"team": team_b}),
+        asyncio.to_thread(_call, "get_news",                {"team": team_a, "limit": 5}),
+        asyncio.to_thread(_call, "get_news",                {"team": team_b, "limit": 5}),
+        asyncio.to_thread(_call, "get_injuries",            {"team": team_a}),
+        asyncio.to_thread(_call, "get_injuries",            {"team": team_b}),
+        asyncio.to_thread(_call, "get_standings",           {"group": group} if group else {}),
+    )
 
     return {
         "statsbomb": (
