@@ -196,16 +196,22 @@ async def _run_forecast_pipeline_inner(
         match_query=req.match_query,
         consensus=result.consensus,
         critique=result.critique,
+        round_votes=result.round_votes,
+        deliberation_rounds=settings.deliberation_rounds,
         market=None,
         spread=None,
         edge_detected=False,
         bet_receipt=None,
     )
 
-    # Verdict — narrative synthesis of round-2 votes
+    # Verdict — narrative synthesis of final-round votes
     verdict = await synthesize_verdict(
-        req.match_query, result.consensus, result.consensus.all_votes,
-        req.team_a, req.team_b,
+        req.match_query,
+        result.consensus,
+        result.consensus.all_votes,
+        req.team_a,
+        req.team_b,
+        final_round=settings.deliberation_rounds,
     )
     await emit(WSEventType.verdict, {"text": verdict})
 
