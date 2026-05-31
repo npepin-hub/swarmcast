@@ -18,6 +18,7 @@ from .market.edge import detect_and_act
 from .market.gamma import find_wc_market, fetch_winner_odds, fetch_top_wc_favorites
 from .observability import weave_tracer
 from .schemas import ForecastResult, WSEventType, WSMessage
+from .eval.router import router as eval_router
 
 
 @asynccontextmanager
@@ -28,6 +29,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="SwarmCast", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory="frontend"), name="static")
+app.include_router(eval_router)
 
 
 class ConnectionManager:

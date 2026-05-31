@@ -118,7 +118,7 @@ async def run_delphi_langgraph(
         seed = HumanMessage(content=prompt)
         config = {
             "configurable": {"thread_id": str(uuid.uuid4())},
-            "recursion_limit": 8,
+            "recursion_limit": 25,
         }
         result = await asyncio.to_thread(
             app.invoke,
