@@ -57,8 +57,8 @@ function renderGroupTile(group) {
   tile.className = "group-tile";
 
   const header = document.createElement("div");
-  header.className = "group-header";
-  header.textContent = `Group ${group.id}`;
+  header.className = "group-header collapsible";
+  header.innerHTML = `Group ${group.id}<span class="group-chevron">▸</span>`;
   tile.appendChild(header);
 
   const teams = document.createElement("div");
@@ -72,7 +72,7 @@ function renderGroupTile(group) {
   tile.appendChild(teams);
 
   const matchList = document.createElement("div");
-  matchList.className = "match-list";
+  matchList.className = "match-list hidden";
   (group.matches || []).forEach(m => {
     const row = document.createElement("div");
     row.className = "match-row";
@@ -86,6 +86,11 @@ function renderGroupTile(group) {
     matchList.appendChild(row);
   });
   tile.appendChild(matchList);
+
+  header.addEventListener("click", () => {
+    const open = matchList.classList.toggle("hidden");
+    header.querySelector(".group-chevron").textContent = open ? "▸" : "▾";
+  });
 
   return tile;
 }

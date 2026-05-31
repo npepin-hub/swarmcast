@@ -468,6 +468,15 @@ pre#bet-receipt {
   letter-spacing: 0.1em;
   color: var(--accent);
 }
+.group-header.collapsible {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  user-select: none;
+}
+.group-header.collapsible:hover { color: var(--text); }
+.group-chevron { font-size: 0.6rem; color: var(--muted); }
 
 .group-teams {
   display: flex;
