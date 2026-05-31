@@ -82,12 +82,9 @@ def _resolve_research_vote(state: ResearchState, result: dict) -> AgentVote:
             "Vote node missing — using ML-only vote",
             payload={"probability_team_a": pred.get("probability_team_a")},
         )
-        brief = str(result.get("research_brief", ""))
-        return vote_from_ml_prediction(
-            pred,
-            round_num,
-            reasoning=brief[:500] if brief else str(pred.get("ml_summary", "")),
-        )
+        merged = _state_from_result(state, result)
+        stub = vote_from_ml_prediction(pred, round_num)
+        return _finalize_research_vote(merged, stub, pred)
 
     raw = str(result.get("research_brief", ""))
     fallback = parse_vote(raw, "research_specialist", round_num)

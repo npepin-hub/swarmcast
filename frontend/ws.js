@@ -107,8 +107,8 @@ function addAgentCard(vote) {
   card.innerHTML = `
     <div class="role" style="color:${color}">${vote.role.replace(/_/g, " ")}</div>
     ${roundRows}
-    ${latest.key_signal ? `<div class="signal"><span class="agg-notes-label">Signal</span> ${escHtml(latest.key_signal)}</div>` : ""}
-    ${latest.reasoning ? `<div class="reasoning"><span class="agg-notes-label">Reasoning</span> ${escHtml(latest.reasoning)}</div>` : ""}
+    ${latest.key_signal ? `<div class="signal"><span class="agg-notes-label">Signal</span><span class="agg-notes-body">${escHtml(latest.key_signal)}</span></div>` : ""}
+    ${latest.reasoning ? `<div class="reasoning"><span class="agg-notes-label">Reasoning</span><span class="agg-notes-body">${escHtml(latest.reasoning)}</span></div>` : ""}
     ${latest.uncertainty_flag ? '<div class="flag">⚠ Low data confidence</div>' : ""}
   `;
 
@@ -284,8 +284,8 @@ function renderAggregateTable(consensus) {
 
     const notesRow = (signal || reasoning) ? `<tr class="agg-notes-row">
       <td colspan="${colSpan}" class="agg-notes-cell">
-        ${signal ? `<div class="agg-signal-line"><span class="agg-notes-label">Signal</span>${escHtml(signal)}</div>` : ""}
-        ${reasoning ? `<div class="agg-reasoning-line"><span class="agg-notes-label">Reasoning</span>${escHtml(reasoning)}</div>` : ""}
+        ${signal ? `<div class="agg-signal-line"><span class="agg-notes-label">Signal</span><span class="agg-notes-body">${escHtml(signal)}</span></div>` : ""}
+        ${reasoning ? `<div class="agg-reasoning-line"><span class="agg-notes-label">Reasoning</span><span class="agg-notes-body">${escHtml(reasoning)}</span></div>` : ""}
       </td>
     </tr>` : "";
 

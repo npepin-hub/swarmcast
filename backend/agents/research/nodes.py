@@ -200,45 +200,79 @@ End with exactly one line: STATUS: COMPLETE or STATUS: REVISION-REQUIRED
     }
 
 
-def _brief_excerpts(brief_str: str) -> tuple[str, str]:
-    """Extract signal + reasoning text from synthesizer JSON brief."""
+def _looks_like_json(text: str) -> bool:
+    t = (text or "").strip()
+    return t.startswith("{") or t.startswith("[")
+
+
+def _format_brief_reasoning(brief_str: str) -> str:
+    """Turn synthesizer JSON brief into readable prose (never raw JSON in UI)."""
     data = extract_json_object(brief_str) if brief_str else None
     if not data:
-        text = (brief_str or "").strip()
-        return text[:160], text[:500]
+        if _looks_like_json(brief_str):
+            return "Research brief could not be parsed; see Weave trace for full output."
+        return (brief_str or "").strip()[:500]
 
+    blocks: list[str] = []
+    summary = str(data.get("summary", "")).strip()
+    if summary:
+        blocks.append(summary)
+    ml_note = str(data.get("ml_baseline_note", "")).strip()
+    if ml_note:
+        blocks.append(ml_note)
     factors = data.get("key_factors") or []
-    signal = ""
-    if factors and isinstance(factors, list):
-        signal = str(factors[0])
-    if not signal:
-        signal = str(data.get("favourite", "") or data.get("summary", ""))[:160]
-
-    parts = [
-        str(data.get("summary", "")),
-        str(data.get("ml_baseline_note", "")),
-        str(data.get("underdog_case", "")),
-    ]
+    if isinstance(factors, list) and factors:
+        bullets = "; ".join(str(f).strip() for f in factors[:4] if f)
+        if bullets:
+            blocks.append(f"Key factors: {bullets}")
     risks = data.get("risks") or []
     if isinstance(risks, list) and risks:
-        parts.append("Risks: " + "; ".join(str(r) for r in risks[:3]))
-    reasoning = " ".join(p.strip() for p in parts if p and p.strip())[:500]
-    return signal[:200], reasoning
+        blocks.append("Risks: " + "; ".join(str(r).strip() for r in risks[:3] if r))
+    underdog = str(data.get("underdog_case", "")).strip()
+    if underdog:
+        blocks.append(underdog)
+    fav = str(data.get("favourite", "")).strip()
+    if fav and fav.lower() not in summary.lower():
+        blocks.append(f"Favourite: {fav}")
+    return "\n\n".join(blocks)[:800]
 
 
-def _ml_signal_line(pred: dict, team_a: str, team_b: str) -> str:
+def _brief_top_factor(brief_str: str) -> str:
+    data = extract_json_object(brief_str) if brief_str else None
+    if not data:
+        return ""
+    factors = data.get("key_factors") or []
+    if isinstance(factors, list) and factors:
+        return str(factors[0]).strip()[:120]
+    return str(data.get("summary", "")).strip()[:120]
+
+
+def _compact_ml_signal(pred: dict, team_a: str, team_b: str) -> str:
+    """One-line Signal for the aggregate table."""
     if not pred:
         return ""
     pa = float(pred.get("probability_team_a", 0.5))
     pt = pred.get("probability_team_a_tournament")
     pf = pred.get("probability_team_a_features")
-    extra = ""
-    if pt is not None and pf is not None:
-        extra = (
-            f" (WC-model {float(pt):.0%}, form {float(pf):.0%}; "
-            f"favors {pred.get('model_favored_team')}/{pred.get('form_favored_team')})"
-        )
-    return f"ML blended P({team_a})={pa:.0%}{extra}"
+    ga = pred.get("team_a_goals", 1)
+    gb = pred.get("team_b_goals", 1)
+    form_f = pred.get("form_favored_team", "")
+    model_f = pred.get("model_favored_team", "")
+    parts = [f"P({team_a})={pa:.0%}", f"score {ga}-{gb}"]
+    if pf is not None:
+        parts.append(f"form→{form_f} ({float(pf):.0%})")
+    if pt is not None:
+        parts.append(f"WC-model→{model_f} ({float(pt):.0%})")
+    return " · ".join(parts)
+
+
+def _is_redundant_signal(text: str) -> bool:
+    t = (text or "").strip()
+    if not t or t == "parse_error":
+        return True
+    if _looks_like_json(t):
+        return True
+    return "Form (" in t and "weight)" in t and len(t) > 120
 
 
 def _enrich_research_vote(
@@ -249,37 +283,31 @@ def _enrich_research_vote(
     team_a = state.get("team_a", "Team A")
     team_b = state.get("team_b", "Team B")
     pred = state.get("model_prediction") or {}
-    brief_signal, brief_reason = _brief_excerpts(state.get("research_brief", ""))
-    ml_line = _ml_signal_line(pred, team_a, team_b)
+    brief = state.get("research_brief", "") or ""
 
-    signal_parts = []
-    if ml_line:
-        signal_parts.append(ml_line)
-    if vote.key_signal and vote.key_signal != "parse_error":
-        llm_sig = vote.key_signal.strip()
-        joined = " | ".join(signal_parts)
-        if llm_sig and llm_sig not in joined:
-            signal_parts.append(llm_sig)
-    elif brief_signal:
-        signal_parts.append(brief_signal)
-    key_signal = " | ".join(signal_parts)[:240] or f"Research forecast {team_a} vs {team_b}"
+    key_signal = _compact_ml_signal(pred, team_a, team_b)
+    factor = _brief_top_factor(brief)
+    if factor and factor not in key_signal:
+        key_signal = f"{key_signal} — {factor}" if key_signal else factor
+    key_signal = (key_signal or f"Research forecast {team_a} vs {team_b}")[:240]
 
-    reasoning_parts = []
-    if pred.get("ml_summary"):
-        reasoning_parts.append(str(pred["ml_summary"]))
-    if vote.reasoning and vote.reasoning != (vote.key_signal or ""):
-        reasoning_parts.append(vote.reasoning)
-    if brief_reason:
-        reasoning_parts.append(brief_reason)
-    provenance = (state.get("model_features") or {}).get("provenance")
-    if provenance:
-        reasoning_parts.append(f"Feature sources: {provenance}")
-    reasoning = "\n\n".join(reasoning_parts)[:600] or key_signal
+    reasoning = _format_brief_reasoning(brief)
+    llm_reason = (vote.reasoning or "").strip()
+    if (
+        llm_reason
+        and llm_reason != "parse_error"
+        and not _looks_like_json(llm_reason)
+        and llm_reason not in reasoning
+    ):
+        reasoning = f"{reasoning}\n\n{llm_reason}" if reasoning else llm_reason
+
+    if not reasoning:
+        reasoning = str(pred.get("ml_summary", ""))[:500] or key_signal
 
     return vote.model_copy(
         update={
             "key_signal": key_signal,
-            "reasoning": reasoning,
+            "reasoning": reasoning[:800],
         }
     )
 
@@ -303,14 +331,16 @@ def vote_from_ml_prediction(
     reasoning: str = "",
 ) -> AgentVote:
     """Build AgentVote from predict_match output (used when Vote node did not run)."""
+    team_a = str(pred.get("team_a", "Team A"))
+    team_b = str(pred.get("team_b", "Team B"))
     return AgentVote(
         role="research_specialist",
         team_a_goals=int(pred.get("team_a_goals", 1)),
         team_b_goals=int(pred.get("team_b_goals", 1)),
         probability=float(pred.get("probability_team_a", 0.5)),
         confidence=0.75,
-        key_signal=key_signal or str(pred.get("ml_summary", ""))[:200],
-        reasoning=reasoning or str(pred.get("ml_summary", ""))[:500],
+        key_signal="",
+        reasoning="",
         uncertainty_flag=False,
         round=round_num,
     )

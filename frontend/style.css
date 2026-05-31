@@ -739,19 +739,38 @@ pre#bet-receipt {
 }
 #aggregate-table .agg-signal-line:first-child { margin-top: 0; }
 #aggregate-table .agg-notes-label {
-  display: inline-block;
+  display: block;
   font-size: 0.62rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--text);
-  margin-right: 0.5rem;
-  min-width: 4.5rem;
+  margin-bottom: 0.2rem;
+}
+#aggregate-table .agg-notes-body {
+  display: block;
+  color: var(--muted);
 }
 #aggregate-table .agg-reasoning-line {
   margin-top: 0.5rem;
   white-space: normal;
   word-break: break-word;
+}
+#aggregate-table .agg-reasoning-line .agg-notes-body {
+  line-height: 1.5;
+}
+.agent-card .agg-notes-label {
+  display: block;
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  margin-bottom: 0.15rem;
+}
+.agent-card .agg-notes-body {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.45;
 }
 
 .agg-focus { color: var(--muted); font-size: 0.72rem; }
