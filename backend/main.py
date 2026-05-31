@@ -10,6 +10,10 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from .logging_config import configure_logging
+
+configure_logging()
+
 from .agents.pipeline import run_deliberation
 from .agents.delphi import synthesize_verdict
 from .config import settings
@@ -28,6 +32,7 @@ from .eval.router import router as eval_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    configure_logging()
     weave_tracer.init()
     yield
 

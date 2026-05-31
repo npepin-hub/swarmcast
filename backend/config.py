@@ -58,6 +58,11 @@ class Settings(BaseSettings):
     specialist_contrarian_extra_steps: int = 6
     deliberation_rounds: int = 5
     vote_parse_retries: int = 2
+    research_use_mcp_features: bool = True
+    research_ml_vote_clamp: float = 0.15
+    # Match P(Team A): weight on form heuristic vs tournament-winner linear model
+    research_ml_form_weight: float = 0.75
+    research_log_ml: bool = True
 
     wc_api_key: str = ""
     football_data_api_key: str = ""

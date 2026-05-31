@@ -11,6 +11,7 @@ class ResearchState(TypedDict, total=False):
     team_a: str
     team_b: str
     context: str
+    group: str
     round: int
     rephrased_question: str
     knowledge_graph: KnowledgeGraph | Any
@@ -18,3 +19,5 @@ class ResearchState(TypedDict, total=False):
     audit_status: str
     revision_count: int
     history: list[str]
+    model_features: dict
+    model_prediction: dict

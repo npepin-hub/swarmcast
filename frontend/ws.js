@@ -54,7 +54,18 @@ function teamAName() {
 const votesByRole = {};    // role → { r1: AgentVote, r2: AgentVote }
 const focusByRole = {};    // role → focus string from specialist definition
 
+function normalizeVote(raw) {
+  const v = { ...raw };
+  const p = Number(v.probability);
+  v.probability = Number.isFinite(p) ? p : 0.5;
+  v.round = Number(v.round) || 1;
+  v.team_a_goals = Number(v.team_a_goals) || 0;
+  v.team_b_goals = Number(v.team_b_goals) || 0;
+  return v;
+}
+
 function addAgentCard(vote) {
+  vote = normalizeVote(vote);
   if (!votesByRole[vote.role]) votesByRole[vote.role] = {};
   votesByRole[vote.role][`r${vote.round}`] = vote;
 
@@ -96,8 +107,8 @@ function addAgentCard(vote) {
   card.innerHTML = `
     <div class="role" style="color:${color}">${vote.role.replace(/_/g, " ")}</div>
     ${roundRows}
-    <div class="signal"><strong>Key signal:</strong> ${latest.key_signal}</div>
-    <div class="reasoning">${latest.reasoning}</div>
+    ${latest.key_signal ? `<div class="signal"><span class="agg-notes-label">Signal</span> ${escHtml(latest.key_signal)}</div>` : ""}
+    ${latest.reasoning ? `<div class="reasoning"><span class="agg-notes-label">Reasoning</span> ${escHtml(latest.reasoning)}</div>` : ""}
     ${latest.uncertainty_flag ? '<div class="flag">⚠ Low data confidence</div>' : ""}
   `;
 
@@ -457,8 +468,7 @@ function handleEvent(msg) {
       if (msg.payload.round_votes?.length) {
         msg.payload.round_votes.forEach((round, idx) => {
           round.forEach(v => {
-            v.round = idx + 1;
-            addAgentCard(v);
+            addAgentCard({ ...v, round: idx + 1 });
           });
         });
       }

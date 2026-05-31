@@ -194,4 +194,14 @@ async def build_context_bundle(
             f"## Group Standings\n{standings}"
             f"\n\n## Bookmaker Group Predictions\n{odds}"
         ),
+        "research": (
+            f"## Team Profiles\n\n### {team_a}\n{profile_a}"
+            f"\n\n### {team_b}\n{profile_b}"
+            f"\n\n## Comparison\n{compare}"
+            f"\n\n## Head-to-Head\n{h2h}"
+            f"\n\n## Recent Matches\n\n### {team_a}\n{matches_a}"
+            f"\n\n### {team_b}\n{matches_b}"
+            f"\n\n## Historical Record\n\n### {team_a}\n{hist_team_a}"
+            f"\n\n### {team_b}\n{hist_team_b}"
+        ),
     }

@@ -93,13 +93,19 @@ async def _run_one_specialist(
 ) -> AgentVote:
     ctx = contexts.get(spec.data_slice_id, default_ctx)
     if spec.role == "research_specialist":
+        print(f"[swarm] dispatch research_specialist round={round}", flush=True)
+        # Include orchestrator/Delphi system_prompt (R2+ addendum) — graph only read `context` before.
+        research_ctx = "\n\n".join(
+            p for p in (spec.system_prompt.strip(), ctx.strip()) if p
+        )
         return await run_research_specialist_async(
             match_query,
             team_a,
             team_b,
-            ctx,
+            research_ctx,
             round,
             settings.wandb_research_model,
+            group,
         )
 
     vote: AgentVote | None = None

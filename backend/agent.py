@@ -416,44 +416,27 @@ def route_based_on_status(state: AgentState) -> str:
     return END
 
 
-from sklearn.model_selection import train_test_split
-from sklearn.linear_model import LinearRegression
-from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import mean_squared_error, r2_score
-import joblib
-    
-def training(table_path: str, teams:list, dependent_var: str, independent_var: list):
+from .agents.research.wc_model import (  # noqa: E402
+    INDEPENDENT_VARS,
+    TRAIN_CSV,
+    predict_match,
+    prediction as _predict_features,
+    training,
+)
+
+
+def prediction(
+    model_id: str,
+    table_path: str,
+    teams: list,
+    dependent_var: str,
+    independent_var: list,
+) -> dict:
+    """Legacy shim — predict tournament-strength on CSV rows for given teams."""
+    _ = model_id, dependent_var
     df = pd.read_csv(table_path)
-    df = df[df['team'].isin(teams)]
-    X = df[independent_var].fillna(0)
-    y = df[dependent_var].fillna(0)
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-    scaler = StandardScaler()
-    X_train = scaler.fit_transform(X_train)
-    X_test = scaler.transform(X_test)
-    model = LinearRegression()
-    model.fit(X_train, y_train)
-    y_pred = model.predict(X_test)
-    mse = mean_squared_error(y_test, y_pred)
-    r2 = r2_score(y_test, y_pred)
-    model_id = "model.pkl"
-    joblib.dump(model, model_id)
-    
-    return {"model_id": model_id, "mse": mse, "r2": r2}
-    
-def prediction(model_id: str,table_path: str, teams:list, dependent_var: str, independent_var: list) -> dict:
-    df = pd.read_csv(table_path)
-    df = df[df['team'].isin(teams)]
-    X_test = df[independent_var].fillna(0)
-    scaler = StandardScaler()
-    X_test = scaler.fit_transform(X_test)
-    
-    model = joblib.load(model_id)
-    y_pred = model.predict(X_test)
-    
-    return {
-        "prediction": y_pred
-    }
+    df = df[df["team"].isin(teams)]
+    return _predict_features(df[["team", *independent_var]])
 
 workflow = StateGraph(AgentState)
 workflow.add_node("Researcher", researcher_node)
@@ -467,19 +450,23 @@ workflow.add_conditional_edges("FactChecker", route_based_on_status, {END: END})
 
 app = workflow.compile()
 
-if __name__ =="__main__":
-    tablepath = 'data/train.csv'
-    independent_vars = [
-    "goals_scored_last_4y",
-    "goals_received_last_4y",
-    "wins_last_4y",
-    "losses_last_4y",
-    "draws_last_4y"]
-    dependent_vars = 'winner'
-    teams = ['Angola', 'Argentina', 'Australia', 'Brazil']
-    model_id = 'model.pkl'
-    print(training(tablepath,teams, dependent_vars, independent_vars))
-    print(prediction(model_id, tablepath,teams, dependent_vars, independent_vars))
+if __name__ == "__main__":
+    independent_vars = INDEPENDENT_VARS
+    dependent_vars = "winner"
+    teams = ["Angola", "Argentina", "Australia", "Brazil"]
+    print(training(TRAIN_CSV, teams, dependent_vars, independent_vars))
+    import pandas as pd
+
+    df = pd.read_csv(TRAIN_CSV)
+    df = df[df["team"].isin(teams)]
+    print(prediction("", TRAIN_CSV, teams, dependent_vars, independent_vars))
+    print(
+        predict_match(
+            "Argentina",
+            "Brazil",
+            df[df["team"].isin(["Argentina", "Brazil"])],
+        )
+    )
     # initial_state = AgentState(
     #     question = "find the winner",
     #     tablePath = "data/train.csv",
