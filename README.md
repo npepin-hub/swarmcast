@@ -11,7 +11,7 @@ https://wandb.ai/{WANDB_ENTITY}/{WANDB_PROJECT}/weave
 ```
 
 - `run_forecast_pipeline` → `run_deliberation` (`swarm_run_id`)
-  - `spawn_specialists` → `run_swarm` → `run_critic` → `act_on_critique` → `run_delphi_round` → `aggregate`
+  - `spawn_specialists` → `run_swarm` (incl. `research_specialist` LangGraph) → `run_critic` → …
   - Delphi: `run_delphi_langgraph` or parallel W&B (`USE_LANGGRAPH_DELPHI=false`)
 - `run_market_validation` (post-deliberation)
 
@@ -61,7 +61,7 @@ Open http://localhost:8000
 
 ```
 backend/
-  agents/         pipeline, orchestrator, specialists, critic, delphi, swarm_langgraph, inference
+  agents/         pipeline, orchestrator, specialists, research/ (KG graph), critic, delphi, inference
   data/           wc26.py (MCP client)
   market/         gamma.py, edge.py (validation after vote)
   observability/  weave_tracer.py

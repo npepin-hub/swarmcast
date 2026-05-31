@@ -16,7 +16,7 @@ from ..schemas import AgentVote, SpecialistDefinition
 from .consensus import weighted_consensus
 from .inference import VOTE_JSON, extract_json_object
 from .specialist_react import run_specialist_with_mcp_async
-from .vote_parse import parse_vote
+from .vote_parse import parse_vote, vote_text_from_messages
 
 ORCHESTRATOR_NAME = "orchestrator"
 ORCHESTRATOR_PROMPT = """You coordinate the Delphi revision round.
@@ -79,7 +79,7 @@ def _build_swarm(roles: list[str]) -> object:
 def _extract_vote(messages: list, role: str) -> AgentVote | None:
     for msg in reversed(messages):
         if isinstance(msg, AIMessage) and getattr(msg, "name", None) == role:
-            vote = parse_vote(str(msg.content), role, 2)
+            vote = parse_vote(vote_text_from_messages([msg]) or str(msg.content), role, 2)
             if vote.uncertainty_flag and vote.key_signal == "parse_error":
                 continue
             return vote
@@ -99,8 +99,8 @@ async def run_delphi_langgraph(
     """Delphi round 2: sparse signal + LangGraph Swarm revision per specialist."""
     mean_p, ci_low, ci_high = weighted_consensus(round1_votes)
     delphi_signal = (
-        f"[DELPHI SIGNAL] After round 1: P({team_a} wins)={mean_p:.3f}, "
-        f"80% CI [{ci_low:.3f}, {ci_high:.3f}]. "
+        f"[DELPHI SIGNAL] Anonymous panel aggregate (no individual round-1 votes shown): "
+        f"P({team_a} wins)={mean_p:.3f}, 80% CI [{ci_low:.3f}, {ci_high:.3f}]. "
         "Revise only if your data warrants it."
     )
     roles = [s.role for s in specialists]

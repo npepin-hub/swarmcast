@@ -53,25 +53,61 @@ FALLBACK_SPECIALISTS: list[dict] = [
     },
     {
         "role": "contrarian",
-        "data_slice_id": "statsbomb",
+        "data_slice_id": "contrarian",
         "system_prompt": (
-            "You are a contrarian analyst biased against the favourite. "
-            "Form your own independent view based solely on your assigned data."
+            "You are a contrarian analyst. Challenge the favourite / consensus "
+            "narrative using match data only — never other specialists' votes. "
+            "Always submit a concrete score and win probability."
         ),
     },
 ]
+
+CONTRARIAN_FALLBACK = FALLBACK_SPECIALISTS[-1]
+
+RESEARCH_FALLBACK: dict = {
+    "role": "research_specialist",
+    "data_slice_id": "research",
+    "system_prompt": (
+        "You are the research specialist. Build a knowledge graph of match factors, "
+        "synthesize a brief, pass compliance, then forecast score and win probability. "
+        "Never use betting odds or other specialists' votes in round 1."
+    ),
+}
 
 _SPAWN_SYSTEM = """\
 You are a meta-orchestrator for a multi-agent sports forecasting system.
 Given a match question, return a JSON array of specialist definitions.
 Each element: {"role": str, "system_prompt": str, "data_slice_id": str}
 Valid data_slice_id values (controls MCP tool access):
-  statsbomb, kaggle_history, live_form, live_injuries, live_standings
+  statsbomb, kaggle_history, live_form, live_injuries, live_standings, contrarian, research
 Rules:
-- Always include a contrarian agent.
-- Specialists use MCP tools on their slice; prompts must require independent views; no Polymarket/odds.
+- Always include exactly one agent with role \"contrarian\" and data_slice_id \"contrarian\".
+- Always include exactly one agent with role \"research_specialist\" and data_slice_id \"research\".
+- Specialists use MCP tools on their slice; round 1 is blind — no peer votes; no Polymarket/odds.
 - Return ONLY the JSON array.
 """
+
+
+def ensure_contrarian(
+    specialists: list[SpecialistDefinition],
+) -> list[SpecialistDefinition]:
+    if any(s.role == "contrarian" for s in specialists):
+        return specialists
+    return [*specialists, SpecialistDefinition(**CONTRARIAN_FALLBACK)]
+
+
+def ensure_research_specialist(
+    specialists: list[SpecialistDefinition],
+) -> list[SpecialistDefinition]:
+    if any(s.role == "research_specialist" for s in specialists):
+        return specialists
+    return [*specialists, SpecialistDefinition(**RESEARCH_FALLBACK)]
+
+
+def ensure_panel_specialists(
+    specialists: list[SpecialistDefinition],
+) -> list[SpecialistDefinition]:
+    return ensure_research_specialist(ensure_contrarian(specialists))
 
 
 @weave.op()
@@ -83,14 +119,18 @@ def spawn_specialists(match_query: str, team_a: str = "", team_b: str = "") -> l
     arr = extract_json_array(raw)
     if arr:
         try:
-            return [SpecialistDefinition(**d) for d in arr]
+            return ensure_panel_specialists([SpecialistDefinition(**d) for d in arr])
         except Exception:
             pass
     try:
         definitions = json.loads(raw)
-        return [SpecialistDefinition(**d) for d in definitions]
+        return ensure_panel_specialists(
+            [SpecialistDefinition(**d) for d in definitions]
+        )
     except Exception:
-        return [SpecialistDefinition(**s) for s in FALLBACK_SPECIALISTS]
+        return ensure_panel_specialists(
+            [SpecialistDefinition(**s) for s in FALLBACK_SPECIALISTS]
+        )
 
 
 @weave.op()

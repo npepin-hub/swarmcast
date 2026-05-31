@@ -50,9 +50,11 @@ async def run_delphi_round(
         )
     mean_p, ci_low, ci_high = weighted_consensus(round1_votes)
     delphi_addendum = (
-        f"\n\n[DELPHI SIGNAL] Panel aggregate after round 1: "
-        f"P({team_a} wins)={mean_p:.3f}, 80% CI [{ci_low:.3f}, {ci_high:.3f}]. "
-        f"Revise if your data warrants it. Do not anchor without justification."
+        f"\n\n[DELPHI SIGNAL] Anonymous panel aggregate after round 1 (no individual "
+        f"agent reasoning shown): P({team_a} wins)={mean_p:.3f}, "
+        f"80% CI [{ci_low:.3f}, {ci_high:.3f}]. "
+        f"Revise if your data warrants it. Contrarian: you may disagree with this "
+        f"aggregate but still have not seen other specialists' round-1 votes."
     )
     delphi_specialists = [
         SpecialistDefinition(

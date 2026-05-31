@@ -23,11 +23,13 @@ Rules:
 
 
 def _format_panel(votes: list[AgentVote]) -> str:
+    """Anonymous panel doc for critic only — no agent roles exposed."""
     lines = []
-    for v in votes:
+    for i, v in enumerate(votes, start=1):
         lines.append(
-            f"Score={v.team_a_goals}-{v.team_b_goals} P={v.probability:.2f} "
-            f"conf={v.confidence:.2f} flag={v.uncertainty_flag}\n"
+            f"Agent_{i}: score={v.team_a_goals}-{v.team_b_goals} "
+            f"P={v.probability:.2f} conf={v.confidence:.2f} "
+            f"flag={v.uncertainty_flag}\n"
             f"Signal: {v.key_signal}\nReasoning: {v.reasoning}\n"
         )
     return "\n---\n".join(lines)

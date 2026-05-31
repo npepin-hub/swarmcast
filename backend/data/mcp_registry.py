@@ -33,6 +33,13 @@ SLICE_TOOL_NAMES: dict[str, list[str]] = {
         "wc26_get_groups",
         "wc26_get_bracket",
     ],
+    "contrarian": [
+        "wc26_compare_teams",
+        "wc26_get_team_profile",
+        "wc26_get_historical_matchups",
+        "wc26_what_to_know_now",
+        "history_get_team",
+    ],
 }
 
 # Default when orchestrator assigns another slice id (e.g. wc26, tactical_analyst)

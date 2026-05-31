@@ -8,22 +8,35 @@ import weave
 from ..config import settings
 from ..schemas import AgentVote, SpecialistDefinition
 from .inference import VOTE_JSON, inference_chat
+from .research.specialist import run_research_specialist_async
 from .specialist_react import run_specialist_with_mcp_async
-from .vote_parse import parse_vote
+from .vote_parse import ROUND1_ISOLATION, parse_vote
 
 
 def _vote_user_message(
-    match_query: str, team_a: str, team_b: str, context: str, round: int
+    match_query: str,
+    team_a: str,
+    team_b: str,
+    context: str,
+    round: int,
+    specialist: SpecialistDefinition,
 ) -> str:
     parts = [
         f"Match: {match_query}",
         f"Team A = {team_a}, Team B = {team_b}.",
+        ROUND1_ISOLATION if round == 1 else "",
         f"Round {round} vote — predict the final score (goals for each team) and P(team A wins).",
         VOTE_JSON,
     ]
+    if specialist.role == "contrarian":
+        parts.insert(
+            3,
+            "You are the contrarian: challenge the favourite using only your data — "
+            "not other specialists' views.",
+        )
     if context.strip():
-        parts.insert(2, f"Assigned data:\n{context}")
-    return "\n\n".join(parts)
+        parts.insert(3, f"Assigned data:\n{context}")
+    return "\n\n".join(p for p in parts if p)
 
 
 @weave.op()
@@ -40,29 +53,65 @@ def run_specialist_plain(
     model = model or settings.wandb_specialist_model
     raw = inference_chat(
         specialist.system_prompt,
-        _vote_user_message(match_query, team_a, team_b, context, round),
+        _vote_user_message(
+            match_query, team_a, team_b, context, round, specialist
+        ),
         model,
     )
     return parse_vote(raw, specialist.role, round)
 
 
-@weave.op()
-def run_specialist(
-    specialist: SpecialistDefinition,
+async def _run_one_specialist(
+    spec: SpecialistDefinition,
     match_query: str,
     team_a: str,
     team_b: str,
-    context: str,
-    round: int = 1,
-    group: str = "",
-    model: str | None = None,
+    ctx: str,
+    round: int,
+    group: str,
+    model: str | None,
 ) -> AgentVote:
-    if settings.specialist_use_mcp_tools:
-        return run_specialist_with_mcp(
-            specialist, match_query, team_a, team_b, context, round, group, model
+    if spec.role == "research_specialist":
+        return await run_research_specialist_async(
+            match_query,
+            team_a,
+            team_b,
+            ctx,
+            round,
+            settings.wandb_research_model,
         )
-    return run_specialist_plain(
-        specialist, match_query, team_a, team_b, context, round, model
+    if settings.specialist_use_mcp_tools:
+        vote = await run_specialist_with_mcp_async(
+            spec, match_query, team_a, team_b, ctx, round, group, model
+        )
+    else:
+        vote = await asyncio.to_thread(
+            run_specialist_plain,
+            spec,
+            match_query,
+            team_a,
+            team_b,
+            ctx,
+            round,
+            model,
+        )
+
+    if vote.key_signal != "parse_error":
+        return vote
+
+    retry_ctx = (
+        f"{ctx}\n\n[RETRY] You must submit a complete vote JSON now. "
+        "Do not call more tools."
+    )
+    return await asyncio.to_thread(
+        run_specialist_plain,
+        spec,
+        match_query,
+        team_a,
+        team_b,
+        retry_ctx,
+        round,
+        model,
     )
 
 
@@ -82,19 +131,30 @@ async def run_swarm(
 
     async def _one(spec: SpecialistDefinition) -> AgentVote:
         ctx = contexts.get(spec.data_slice_id, default_ctx)
-        if settings.specialist_use_mcp_tools:
-            return await run_specialist_with_mcp_async(
-                spec, match_query, team_a, team_b, ctx, round, group, model
-            )
-        return await asyncio.to_thread(
-            run_specialist_plain,
-            spec,
-            match_query,
-            team_a,
-            team_b,
-            ctx,
-            round,
-            model,
+        return await _run_one_specialist(
+            spec, match_query, team_a, team_b, ctx, round, group, model
         )
 
-    return list(await asyncio.gather(*[_one(s) for s in specialists]))
+    results = await asyncio.gather(
+        *[_one(s) for s in specialists], return_exceptions=True
+    )
+    votes: list[AgentVote] = []
+    for spec, result in zip(specialists, results):
+        if isinstance(result, Exception):
+            print(f"[swarm] {spec.role} failed: {result}")
+            votes.append(
+                AgentVote(
+                    role=spec.role,
+                    team_a_goals=0,
+                    team_b_goals=0,
+                    probability=0.5,
+                    confidence=0.0,
+                    key_signal="agent_error",
+                    reasoning=str(result)[:200],
+                    uncertainty_flag=True,
+                    round=round,
+                )
+            )
+        else:
+            votes.append(result)
+    return votes
