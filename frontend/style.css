@@ -377,6 +377,25 @@ pre#bet-receipt {
 }
 .knockout-label { margin-top: 2.5rem; }
 
+.knockout-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 2rem;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  padding: 0.4rem 0.8rem;
+  text-transform: uppercase;
+  transition: border-color 0.15s, color 0.15s;
+}
+.knockout-toggle:hover { border-color: var(--accent); color: var(--text); }
+
 /* Group grid — 6 columns, wraps to 3 then 2 on smaller screens */
 #group-grid {
   display: grid;

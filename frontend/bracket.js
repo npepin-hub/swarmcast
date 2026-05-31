@@ -137,4 +137,14 @@ async function initBracket() {
   renderKnockout();
 }
 
-document.addEventListener("DOMContentLoaded", initBracket);
+document.addEventListener("DOMContentLoaded", () => {
+  initBracket();
+
+  document.getElementById("knockout-toggle").addEventListener("click", () => {
+    const bracket  = document.getElementById("knockout-bracket");
+    const chevron  = document.getElementById("knockout-chevron");
+    const expanded = !bracket.classList.contains("hidden");
+    bracket.classList.toggle("hidden", expanded);
+    chevron.textContent = expanded ? "▸" : "▾";
+  });
+});
