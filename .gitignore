@@ -28,3 +28,4 @@ wandb/
 # IDE
 .idea/
 .vscode/
+.venv311/
