@@ -176,9 +176,18 @@ function maxVoteRound() {
   return Math.max(max, deliberationRounds);
 }
 
-function fmtVote(v) {
+function escHtml(s) {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function fmtVoteCell(v) {
   if (!v) return "—";
-  return `${v.team_a_goals}–${v.team_b_goals} · ${(v.probability * 100).toFixed(1)}%`;
+  return `<div class="agg-vote-score">${v.team_a_goals}–${v.team_b_goals}</div>
+    <div class="agg-vote-pct">${(v.probability * 100).toFixed(1)}%</div>`;
 }
 
 function renderAggregateTable(consensus) {
@@ -190,15 +199,15 @@ function renderAggregateTable(consensus) {
   const nRounds = consensus?.deliberation_rounds || maxVoteRound();
   const roundNums = Array.from({ length: nRounds }, (_, i) => i + 1);
 
+  const colSpan = nRounds + 2; /* agent + rounds + delta */
+
   thead.innerHTML = `<tr>
-    <th>Agent</th>
+    <th class="agg-agent-col">Agent</th>
     ${roundNums.map(n => `<th class="agg-round-col">R${n}</th>`).join("")}
-    <th>Δ</th>
-    <th>Key signal</th>
-    <th>Reasoning</th>
+    <th class="agg-delta-col">Δ</th>
   </tr>`;
 
-  const rows = Object.entries(votesByRole).map(([role, rounds]) => {
+  const rows = Object.entries(votesByRole).flatMap(([role, rounds]) => {
     const color = agentColor(role);
     const focus = focusByRole[role] || "";
     const r1 = rounds.r1;
@@ -209,24 +218,33 @@ function renderAggregateTable(consensus) {
     const deltaStr = delta !== "—"
       ? (parseFloat(delta) >= 0 ? `+${delta}pp` : `${delta}pp`)
       : "—";
+    const signal = rFinal?.key_signal || r1?.key_signal || "";
+    const reasoning = rFinal?.reasoning || r1?.reasoning || "";
 
     const roundCells = roundNums.map(n => {
       const v = rounds[`r${n}`];
-      return `<td class="agg-round-cell">${fmtVote(v)}</td>`;
+      return `<td class="agg-round-cell">${fmtVoteCell(v)}</td>`;
     }).join("");
 
-    return `<tr>
-      <td style="color:${color}">
-        <div style="font-weight:600">${role.replace(/_/g, " ")}</div>
-        ${focus ? `<div class="agg-focus">${focus}</div>` : ""}
+    const voteRow = `<tr class="agg-vote-row">
+      <td class="agg-agent-cell" style="color:${color}">
+        <div class="agg-agent-name">${role.replace(/_/g, " ")}</div>
+        ${focus ? `<div class="agg-focus">${escHtml(focus)}</div>` : ""}
       </td>
       ${roundCells}
       <td class="agg-delta">
         <span class="delta ${parseFloat(delta) >= 0 ? "up" : "dn"}">${deltaStr}</span>
       </td>
-      <td class="agg-signal">${rFinal?.key_signal || r1?.key_signal || ""}</td>
-      <td class="agg-reasoning">${rFinal?.reasoning || r1?.reasoning || ""}</td>
     </tr>`;
+
+    const notesRow = (signal || reasoning) ? `<tr class="agg-notes-row">
+      <td colspan="${colSpan}" class="agg-notes-cell">
+        ${signal ? `<div class="agg-signal-line"><span class="agg-notes-label">Signal</span>${escHtml(signal)}</div>` : ""}
+        ${reasoning ? `<div class="agg-reasoning-line"><span class="agg-notes-label">Reasoning</span>${escHtml(reasoning)}</div>` : ""}
+      </td>
+    </tr>` : "";
+
+    return [voteRow, notesRow];
   });
 
   tbody.innerHTML = rows.join("");

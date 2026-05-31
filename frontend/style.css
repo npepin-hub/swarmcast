@@ -621,22 +621,75 @@ pre#bet-receipt {
 }
 #aggregate-table tr:last-child td { border-bottom: none; }
 #aggregate-table tr:hover td { background: rgba(255,255,255,0.02); }
-#aggregate-table .agg-round-col,
-#aggregate-table .agg-round-cell {
-  font-size: 0.8rem;
-  white-space: nowrap;
-  text-align: center;
-}
-#aggregate-table .agg-delta { text-align: center; white-space: nowrap; }
-#aggregate-table .agg-round-tag {
+#aggregate-table .agg-agent-col { min-width: 7rem; }
+#aggregate-table .agg-round-col {
   font-size: 0.65rem;
+  text-align: center;
+  padding: 0.35rem 0.25rem;
+  min-width: 2.6rem;
+}
+#aggregate-table .agg-round-cell {
+  text-align: center;
+  padding: 0.35rem 0.25rem;
+  vertical-align: middle;
+}
+#aggregate-table .agg-vote-score {
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+#aggregate-table .agg-vote-pct {
+  font-size: 0.68rem;
+  color: var(--accent);
+  line-height: 1.2;
+}
+#aggregate-table .agg-delta-col,
+#aggregate-table .agg-delta {
+  text-align: center;
+  white-space: nowrap;
+  padding: 0.35rem 0.4rem;
+  min-width: 2.5rem;
+}
+#aggregate-table .agg-agent-cell { min-width: 7rem; }
+#aggregate-table .agg-agent-name { font-weight: 600; }
+#aggregate-table tr.agg-notes-row td {
+  padding: 0 0.6rem 0.65rem;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+#aggregate-table tr.agg-vote-row td {
+  border-bottom: none;
+  padding-bottom: 0.2rem;
+}
+#aggregate-table .agg-notes-cell {
+  background: rgba(255,255,255,0.02);
+}
+#aggregate-table .agg-signal-line,
+#aggregate-table .agg-reasoning-line {
+  display: block;
+  font-size: 0.78rem;
+  line-height: 1.45;
   color: var(--muted);
-  margin-left: 0.25rem;
+  margin-top: 0.35rem;
+}
+#aggregate-table .agg-signal-line:first-child { margin-top: 0; }
+#aggregate-table .agg-notes-label {
+  display: inline-block;
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text);
+  margin-right: 0.5rem;
+  min-width: 4.5rem;
+}
+#aggregate-table .agg-reasoning-line {
+  margin-top: 0.5rem;
+  white-space: normal;
+  word-break: break-word;
 }
 
-.agg-focus    { color: var(--muted); font-size: 0.72rem; white-space: nowrap; }
-.agg-signal   { color: var(--muted); max-width: 180px; }
-.agg-reasoning { color: var(--muted); max-width: 340px; line-height: 1.5; }
+.agg-focus { color: var(--muted); font-size: 0.72rem; }
 
 .delta     { font-size: 0.7rem; margin-left: 0.3rem; }
 .delta.up  { color: var(--green); }
