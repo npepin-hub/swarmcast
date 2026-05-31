@@ -9,78 +9,75 @@
 <body>
   <header>
     <h1>SwarmCast</h1>
-    <p class="tagline">Multi-agent swarm · World Cup forecasting · Polymarket edge detection</p>
+    <p class="tagline">Multi-agent swarm · World Cup 2026 · Polymarket edge detection</p>
   </header>
 
   <main>
-    <!-- Match input -->
-    <section id="input-panel">
-      <form id="forecast-form">
-        <div class="field-row">
-          <input id="team-a"    type="text"   placeholder="Team A (e.g. Brazil)"   required />
-          <span class="vs">vs</span>
-          <input id="team-b"    type="text"   placeholder="Team B (e.g. France)"    required />
-        </div>
-        <div class="field-row secondary">
-          <input id="team-a-id"        type="number" placeholder="Team A ID (football-data.org)" />
-          <input id="team-b-id"        type="number" placeholder="Team B ID" />
-          <input id="competition-id"   type="text"   placeholder="Competition ID (e.g. WC2026)" />
-          <input id="market-id"        type="text"   placeholder="Polymarket market ID (optional)" />
-        </div>
-        <button type="submit" id="run-btn">Run SwarmCast</button>
-      </form>
+
+    <!-- ── Group stage ─────────────────────────────────────────────────── -->
+    <section id="bracket-section">
+      <h2 class="section-label">Group Stage</h2>
+      <div id="group-grid"></div>
+
+      <!-- Knockout stages -->
+      <h2 class="section-label knockout-label">Knockout Stage</h2>
+      <div id="knockout-bracket"></div>
     </section>
 
-    <!-- Boids visualization -->
-    <section id="viz-panel">
-      <div id="boids-container">
-        <!-- p5.js sketch mounts here -->
+    <!-- ── Sticky run bar (appears on match select) ────────────────────── -->
+    <div id="run-bar" class="hidden">
+      <span id="selected-match-label"></span>
+      <div class="run-bar-actions">
+        <input id="market-id" type="text" placeholder="Polymarket ID (optional)" />
+        <button id="run-btn">Run SwarmCast</button>
       </div>
-      <div id="phase-label">Waiting for match...</div>
+    </div>
+
+    <!-- ── Boids visualization ─────────────────────────────────────────── -->
+    <section id="viz-panel" class="hidden">
+      <div id="boids-container"></div>
+      <div id="phase-label">Waiting for match…</div>
     </section>
 
-    <!-- Live agent feed -->
-    <section id="agent-feed">
-      <h2>Agent Panel</h2>
+    <!-- ── Live agent feed ────────────────────────────────────────────── -->
+    <section id="agent-feed" class="hidden">
+      <h2 class="section-label">Agent Panel</h2>
       <div id="agent-cards"></div>
+      <div id="bar-chart">
+        <div id="bars"></div>
+      </div>
     </section>
 
-    <!-- Critic output -->
+    <!-- ── Critic output ──────────────────────────────────────────────── -->
     <section id="critic-panel" class="hidden">
-      <h2>Holistic Critic</h2>
+      <h2 class="section-label">Holistic Critic</h2>
       <div id="critic-gaps"></div>
       <div id="critic-groupthink"></div>
       <div id="critic-actions"></div>
     </section>
 
-    <!-- Consensus + market -->
+    <!-- ── Consensus + market ─────────────────────────────────────────── -->
     <section id="result-panel" class="hidden">
-      <h2>Consensus</h2>
+      <h2 class="section-label">Consensus</h2>
       <div id="consensus-display">
         <span id="consensus-p" class="big-number">—</span>
         <span id="consensus-ci" class="ci-label"></span>
       </div>
-
       <div id="market-display" class="hidden">
         <h3>Market</h3>
         <span id="market-p" class="big-number">—</span>
         <span id="spread-label"></span>
       </div>
-
       <div id="edge-display" class="hidden">
         <div id="edge-badge"></div>
         <pre id="bet-receipt"></pre>
       </div>
-
-      <!-- Fallback bar chart (shown if Boids not ready) -->
-      <div id="bar-chart">
-        <h3>Agent Votes</h3>
-        <div id="bars"></div>
-      </div>
     </section>
+
   </main>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.11.2/p5.min.js"></script>
+  <script src="/static/bracket.js"></script>
   <script src="/static/sketch.js"></script>
   <script src="/static/ws.js"></script>
 </body>

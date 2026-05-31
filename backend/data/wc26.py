@@ -85,6 +85,15 @@ def _call_history(tool: str, params: dict) -> str:
     return text
 
 
+def get_groups_data() -> dict:
+    """Fetch all 12 WC 2026 groups with teams and matches. Cached for the session."""
+    raw = _call("get_groups", {})
+    try:
+        return json.loads(raw)
+    except Exception:
+        return {"groups": []}
+
+
 async def build_context_bundle(
     team_a: str,
     team_b: str,

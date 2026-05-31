@@ -1,0 +1,139 @@
+/**
+ * Tournament bracket — Group stage tiles + empty knockout stages.
+ * Fetches /matches on load, renders everything, exposes window.selectedMatch.
+ */
+
+const KNOCKOUT_ROUNDS = [
+  { label: "Round of 32", slots: 16 },
+  { label: "Round of 16", slots: 8  },
+  { label: "Quarter-finals", slots: 4 },
+  { label: "Semi-finals",    slots: 2 },
+  { label: "Final",          slots: 1 },
+];
+
+let selectedMatch = null;   // { team_a, team_b, group, match_id, label }
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function fmtDate(iso) {
+  if (!iso) return "";
+  const d = new Date(iso + "T00:00:00Z");
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+}
+
+function selectMatch(row, match, groupId) {
+  // Deselect previous
+  document.querySelectorAll(".match-row.selected").forEach(r => r.classList.remove("selected"));
+  row.classList.add("selected");
+
+  const homeRaw = match.home_team_name || match.home_team_id || "TBD";
+  const awayRaw = match.away_team_name || match.away_team_id || "TBD";
+
+  // Strip leading emoji+space if present (home_team_name already has it)
+  const stripFlag = s => s.replace(/^[\p{Emoji_Presentation}\p{Extended_Pictographic}]\s*/u, "").trim();
+  const teamA = stripFlag(homeRaw);
+  const teamB = stripFlag(awayRaw);
+
+  selectedMatch = {
+    team_a: teamA,
+    team_b: teamB,
+    group: groupId,
+    match_id: match.id,
+    label: `${homeRaw} vs ${awayRaw}`,
+  };
+  window.selectedMatch = selectedMatch;
+
+  // Update run bar
+  document.getElementById("selected-match-label").textContent = selectedMatch.label;
+  document.getElementById("run-bar").classList.remove("hidden");
+}
+
+// ── Group tiles ───────────────────────────────────────────────────────────────
+
+function renderGroupTile(group) {
+  const tile = document.createElement("div");
+  tile.className = "group-tile";
+
+  const header = document.createElement("div");
+  header.className = "group-header";
+  header.textContent = `Group ${group.id}`;
+  tile.appendChild(header);
+
+  const teams = document.createElement("div");
+  teams.className = "group-teams";
+  (group.teams || []).forEach(t => {
+    const span = document.createElement("span");
+    span.className = "team-chip";
+    span.textContent = `${t.flag_emoji || "🏳️"} ${t.name}`;
+    teams.appendChild(span);
+  });
+  tile.appendChild(teams);
+
+  const matchList = document.createElement("div");
+  matchList.className = "match-list";
+  (group.matches || []).forEach(m => {
+    const row = document.createElement("div");
+    row.className = "match-row";
+    const home = m.home_team_name || m.home_team_id || "TBD";
+    const away = m.away_team_name || m.away_team_id || "TBD";
+    row.innerHTML = `
+      <span class="match-teams">${home} <span class="vs-dot">·</span> ${away}</span>
+      <span class="match-date">${fmtDate(m.date)}</span>
+    `;
+    row.addEventListener("click", () => selectMatch(row, m, group.id));
+    matchList.appendChild(row);
+  });
+  tile.appendChild(matchList);
+
+  return tile;
+}
+
+function renderGroups(groups) {
+  const grid = document.getElementById("group-grid");
+  grid.innerHTML = "";
+  groups.forEach(g => grid.appendChild(renderGroupTile(g)));
+}
+
+// ── Knockout bracket ──────────────────────────────────────────────────────────
+
+function renderKnockout() {
+  const bracket = document.getElementById("knockout-bracket");
+  bracket.innerHTML = "";
+
+  KNOCKOUT_ROUNDS.forEach(round => {
+    const col = document.createElement("div");
+    col.className = "bracket-col";
+
+    const label = document.createElement("div");
+    label.className = "bracket-round-label";
+    label.textContent = round.label;
+    col.appendChild(label);
+
+    for (let i = 0; i < round.slots; i++) {
+      const slot = document.createElement("div");
+      slot.className = "bracket-slot empty";
+      slot.innerHTML = `<span class="tbd">TBD</span><span class="vs-dot">vs</span><span class="tbd">TBD</span>`;
+      col.appendChild(slot);
+    }
+    bracket.appendChild(col);
+  });
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+
+async function initBracket() {
+  const grid = document.getElementById("group-grid");
+  grid.innerHTML = `<div class="bracket-loading">Loading matches…</div>`;
+
+  try {
+    const res = await fetch("/matches");
+    const data = await res.json();
+    renderGroups(data.groups || []);
+  } catch (e) {
+    grid.innerHTML = `<div class="bracket-loading error">Failed to load matches — is the server running?</div>`;
+  }
+
+  renderKnockout();
+}
+
+document.addEventListener("DOMContentLoaded", initBracket);

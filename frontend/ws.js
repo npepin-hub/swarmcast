@@ -128,35 +128,32 @@ function handleEvent(msg) {
   }
 }
 
-// ── Form submit → POST /forecast ─────────────────────────────────────────────
+// ── Run button → POST /forecast ──────────────────────────────────────────────
 
-document.getElementById("forecast-form").addEventListener("submit", async (e) => {
-  e.preventDefault();
+document.getElementById("run-btn").addEventListener("click", async () => {
+  const match = window.selectedMatch;
+  if (!match) return;
 
-  // Reset UI
+  // Reset output panels
   document.getElementById("agent-cards").innerHTML = "";
   document.getElementById("bars").innerHTML = "";
   Object.keys(barState).forEach(k => delete barState[k]);
-  hide("critic-panel");
-  hide("result-panel");
-  hide("market-display");
-  hide("edge-display");
+  ["critic-panel", "result-panel", "market-display", "edge-display"].forEach(hide);
+  document.getElementById("viz-panel").classList.remove("hidden");
+  document.getElementById("agent-feed").classList.remove("hidden");
   window.setSwarmPhase?.("deliberating");
 
-  const teamA = document.getElementById("team-a").value.trim();
-  const teamB = document.getElementById("team-b").value.trim();
-
   const body = {
-    match_query:     `Will ${teamA} beat ${teamB}?`,
-    team_a:          teamA,
-    team_b:          teamB,
-    team_a_id:       parseInt(document.getElementById("team-a-id").value) || 0,
-    team_b_id:       parseInt(document.getElementById("team-b-id").value) || 0,
-    competition_id:  document.getElementById("competition-id").value.trim() || "WC2026",
+    match_query: `Predict the final score for ${match.team_a} vs ${match.team_b} in a World Cup match. Provide goals for each team and a confidence score between 0.0 and 1.0.`,
+    team_a: match.team_a,
+    team_b: match.team_b,
+    competition_id: match.group || "",
     polymarket_market_id: document.getElementById("market-id").value.trim(),
   };
 
-  document.getElementById("run-btn").disabled = true;
+  const btn = document.getElementById("run-btn");
+  btn.disabled = true;
+  btn.textContent = "Running…";
   try {
     const res = await fetch("/forecast", {
       method: "POST",
@@ -165,7 +162,8 @@ document.getElementById("forecast-form").addEventListener("submit", async (e) =>
     });
     if (!res.ok) console.error("Forecast error", await res.text());
   } finally {
-    document.getElementById("run-btn").disabled = false;
+    btn.disabled = false;
+    btn.textContent = "Run SwarmCast";
   }
 });
 

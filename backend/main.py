@@ -12,7 +12,7 @@ from pydantic import BaseModel
 
 from .agents.pipeline import run_deliberation
 from .config import settings
-from .data.wc26 import build_context_bundle
+from .data.wc26 import build_context_bundle, get_groups_data
 from .market.edge import detect_and_act
 from .market.gamma import find_wc_market
 from .observability import weave_tracer
@@ -133,6 +133,12 @@ async def run_pipeline(req: ForecastRequest) -> ForecastResult:
 @app.get("/")
 async def index():
     return FileResponse("frontend/index.html")
+
+
+@app.get("/matches")
+async def matches():
+    """Return all WC 2026 groups with teams and matches — used by the bracket UI."""
+    return await asyncio.to_thread(get_groups_data)
 
 
 @app.get("/health")
