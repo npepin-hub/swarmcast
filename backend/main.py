@@ -90,6 +90,7 @@ async def run_forecast_pipeline(req: ForecastRequest) -> ForecastResult:
         req.team_b,
         contexts,
         emit=emit,
+        group=req.competition_id,
     )
 
     forecast = ForecastResult(

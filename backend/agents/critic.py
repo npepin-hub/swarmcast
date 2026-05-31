@@ -26,7 +26,8 @@ def _format_panel(votes: list[AgentVote]) -> str:
     lines = []
     for v in votes:
         lines.append(
-            f"P={v.probability:.2f} conf={v.confidence:.2f} flag={v.uncertainty_flag}\n"
+            f"Score={v.team_a_goals}-{v.team_b_goals} P={v.probability:.2f} "
+            f"conf={v.confidence:.2f} flag={v.uncertainty_flag}\n"
             f"Signal: {v.key_signal}\nReasoning: {v.reasoning}\n"
         )
     return "\n---\n".join(lines)

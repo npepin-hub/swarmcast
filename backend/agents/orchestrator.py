@@ -12,17 +12,16 @@ from .inference import extract_json_array, extract_json_object, inference_chat
 FALLBACK_SPECIALISTS: list[dict] = [
     {
         "role": "tactical_analyst",
-        "data_slice_id": "wc26",
+        "data_slice_id": "statsbomb",
         "system_prompt": (
             "You are a tactical analyst (xG, formations, pressing). "
-            "Form your own independent view based solely on your assigned data. "
-            "Do not speculate about what other analysts might conclude. "
+            "Use MCP tools on your slice to fetch data; form an independent view. "
             "No Polymarket or betting odds."
         ),
     },
     {
         "role": "historical_stats",
-        "data_slice_id": "wc26",
+        "data_slice_id": "kaggle_history",
         "system_prompt": (
             "You are a historical World Cup stats analyst. "
             "Form your own independent view based solely on your assigned data."
@@ -30,7 +29,7 @@ FALLBACK_SPECIALISTS: list[dict] = [
     },
     {
         "role": "current_form",
-        "data_slice_id": "wc26",
+        "data_slice_id": "live_form",
         "system_prompt": (
             "You are a form and momentum analyst. "
             "Form your own independent view based solely on your assigned data."
@@ -38,7 +37,7 @@ FALLBACK_SPECIALISTS: list[dict] = [
     },
     {
         "role": "squad_fitness",
-        "data_slice_id": "wc26",
+        "data_slice_id": "live_injuries",
         "system_prompt": (
             "You are a squad fitness and injuries analyst. "
             "Form your own independent view based solely on your assigned data."
@@ -46,7 +45,7 @@ FALLBACK_SPECIALISTS: list[dict] = [
     },
     {
         "role": "tournament_context",
-        "data_slice_id": "wc26",
+        "data_slice_id": "live_standings",
         "system_prompt": (
             "You are a tournament context analyst (standings, incentives). "
             "Form your own independent view based solely on your assigned data."
@@ -54,7 +53,7 @@ FALLBACK_SPECIALISTS: list[dict] = [
     },
     {
         "role": "contrarian",
-        "data_slice_id": "wc26",
+        "data_slice_id": "statsbomb",
         "system_prompt": (
             "You are a contrarian analyst biased against the favourite. "
             "Form your own independent view based solely on your assigned data."
@@ -65,10 +64,12 @@ FALLBACK_SPECIALISTS: list[dict] = [
 _SPAWN_SYSTEM = """\
 You are a meta-orchestrator for a multi-agent sports forecasting system.
 Given a match question, return a JSON array of specialist definitions.
-Each element: {"role": str, "system_prompt": str, "data_slice_id": "wc26"}
+Each element: {"role": str, "system_prompt": str, "data_slice_id": str}
+Valid data_slice_id values (controls MCP tool access):
+  statsbomb, kaggle_history, live_form, live_injuries, live_standings
 Rules:
 - Always include a contrarian agent.
-- Each prompt must require independent views from assigned data only; no Polymarket/odds.
+- Specialists use MCP tools on their slice; prompts must require independent views; no Polymarket/odds.
 - Return ONLY the JSON array.
 """
 
