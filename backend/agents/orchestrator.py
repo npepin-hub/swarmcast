@@ -92,22 +92,17 @@ FALLBACK_SPECIALISTS: list[dict] = [
     },
     {
         "role": "contrarian",
-<<<<<<< HEAD
+        "focus": "underdog case · upset risk",
         "data_slice_id": "contrarian",
         "system_prompt": (
-            "You are a contrarian analyst. Challenge the favourite / consensus "
-            "narrative using match data only — never other specialists' votes. "
-            "Always submit a concrete score and win probability."
-=======
-        "focus": "underdog case · upset risk",
-        "data_slice_id": "wc26",
-        "system_prompt": (
             "You are a contrarian analyst structurally biased against the favourite. "
-            "Surface the strongest case for the underdog. Identify the single most likely "
-            "mechanism for an upset. "
-            "Form your own independent view based solely on your assigned data. "
-            "No Polymarket or betting odds."
->>>>>>> main
+            "Surface the strongest case for the underdog and a realistic upset probability. "
+            "If Team A is the favourite, your P(Team A wins) should usually be below 0.5 "
+            "unless data strongly contradicts an upset. "
+            "Challenge the consensus narrative using match data only — never other "
+            "specialists' votes in round 1. "
+            "You MUST call submit_vote with your final forecast before ending. "
+            "Form your own independent view from assigned data only. No Polymarket or betting odds."
         ),
     },
 ]
@@ -148,9 +143,19 @@ Rules:
 def ensure_contrarian(
     specialists: list[SpecialistDefinition],
 ) -> list[SpecialistDefinition]:
-    if any(s.role == "contrarian" for s in specialists):
-        return specialists
-    return [*specialists, SpecialistDefinition(**CONTRARIAN_FALLBACK)]
+    out = list(specialists)
+    if any(s.role == "contrarian" for s in out):
+        for i, s in enumerate(out):
+            if s.role == "contrarian":
+                out[i] = SpecialistDefinition(
+                    role="contrarian",
+                    focus=s.focus or CONTRARIAN_FALLBACK["focus"],
+                    data_slice_id="contrarian",
+                    system_prompt=s.system_prompt
+                    + "\nYou MUST call submit_vote with your final forecast before ending.",
+                )
+        return out
+    return [*out, SpecialistDefinition(**CONTRARIAN_FALLBACK)]
 
 
 def ensure_research_specialist(
@@ -211,12 +216,13 @@ def act_on_critique(
             updated = [
                 SpecialistDefinition(
                     role=s.role,
+                    focus=s.focus,
                     system_prompt=s.system_prompt + addendum,
                     data_slice_id=s.data_slice_id,
                 )
                 for s in updated
             ]
-    return updated
+    return ensure_panel_specialists(updated)
 
 
 def _spawn_single(rationale: str, match_query: str) -> SpecialistDefinition | None:
@@ -249,6 +255,7 @@ def _rewrite_prompt(
     )
     return SpecialistDefinition(
         role=specialist.role,
+        focus=specialist.focus,
         system_prompt=raw.strip(),
         data_slice_id=specialist.data_slice_id,
     )
