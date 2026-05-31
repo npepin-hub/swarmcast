@@ -99,8 +99,15 @@
 
       <!-- Swarm probability + verdict -->
       <div id="consensus-display">
-        <div class="consensus-hero">
-          <span id="consensus-score" class="big-number score-line">—</span>
+        <div class="score-block">
+          <span class="score-sublabel">Predicted score</span>
+          <div class="score-row">
+            <span id="score-team-a" class="score-team"></span>
+            <span id="consensus-score" class="big-number score-line">—</span>
+            <span id="score-team-b" class="score-team"></span>
+          </div>
+        </div>
+        <div class="consensus-hero" style="margin-top:0.75rem">
           <span id="consensus-p" class="big-number">—</span>
           <span id="consensus-team-label" class="consensus-team"></span>
         </div>
@@ -117,7 +124,7 @@
         <table id="aggregate-table">
           <thead>
             <tr>
-              <th>Agent</th><th>Focus</th><th>Round 1</th><th>Round 2</th>
+              <th>Agent</th><th>Round 1</th><th>Round 2</th>
               <th>Key signal</th><th>Reasoning</th>
             </tr>
           </thead>

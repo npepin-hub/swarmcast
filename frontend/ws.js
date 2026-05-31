@@ -142,6 +142,8 @@ function renderConsensus(consensus) {
   const dissent = consensus.minority_dissent?.length ?? 0;
 
   setText("consensus-score", `${scoreA}–${scoreB}`);
+  setText("score-team-a", window.selectedMatch?.team_a || "");
+  setText("score-team-b", window.selectedMatch?.team_b || "");
   setText("consensus-p", `${pct}%`);
   setText("consensus-team-label", `predicted score · P(${team} wins)`);
   setText("consensus-plain", "");   // verdict fills this when it arrives
@@ -175,8 +177,10 @@ function renderAggregateTable() {
       : "—";
     const focus = focusByRole[role] || "";
     return `<tr>
-      <td style="color:${color};font-weight:600">${role.replace(/_/g, " ")}</td>
-      <td class="agg-focus">${focus}</td>
+      <td style="color:${color}">
+        <div style="font-weight:600">${role.replace(/_/g, " ")}</div>
+        ${focus ? `<div class="agg-focus">${focus}</div>` : ""}
+      </td>
       <td>${fmt(r1)}</td>
       <td>${fmt(r2)}
         <span class="delta ${parseFloat(delta) >= 0 ? "up" : "dn"}">${deltaStr}</span>
