@@ -18,7 +18,7 @@ function stageLabel(stage) {
   return map[stage.toLowerCase()] || stage;
 }
 
-function initRows(matches) {
+function initRows(matches, pending = false) {
   totalMatches = matches.length;
   const tbody = document.getElementById("eval-rows");
   tbody.innerHTML = "";
@@ -35,7 +35,7 @@ function initRows(matches) {
       <td>${m.actual_winner === "draw" ? "<em>Draw</em>" : m.actual_winner}</td>
       <td id="pred-${m.match_id}" class="result-pending">—</td>
       <td id="conf-${m.match_id}">—</td>
-      <td id="verdict-${m.match_id}" class="result-pending running-pulse">…</td>
+      <td id="verdict-${m.match_id}" class="${pending ? "result-pending running-pulse" : "result-pending"}">${pending ? "…" : "—"}</td>
     `;
     tbody.appendChild(tr);
     rows[m.match_id] = tr;
@@ -96,6 +96,17 @@ function markError(match_id, msg) {
   updateStats();
 }
 
+async function loadMatchList() {
+  try {
+    const res = await fetch("/history/matches");
+    if (!res.ok) return;
+    const matches = await res.json();
+    if (matches.length) initRows(matches);
+  } catch (_) {}
+}
+
+document.addEventListener("DOMContentLoaded", loadMatchList);
+
 function runEval() {
   if (ws) { ws.close(); ws = null; }
 
@@ -115,9 +126,7 @@ function runEval() {
     const msg = JSON.parse(ev.data);
     switch (msg.type) {
       case "matches":
-        initRows(msg.data);
-        // Mark all rows as queued
-        msg.data.forEach(m => markRunning(m.match_id));
+        initRows(msg.data, true);
         break;
       case "running":
         markRunning(msg.match_id);

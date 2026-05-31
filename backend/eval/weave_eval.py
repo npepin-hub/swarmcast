@@ -22,12 +22,14 @@ from ..observability.weave_tracer import ensure_init
 from .wc_backtest import BacktestMatch, judge_prediction, sample_2022
 
 
+# Module-level emit callback — avoids Weave model serialization dropping instance attrs
+_active_emit: Callable[[dict], Awaitable[None]] | None = None
+
+
 class SwarmCastPredictor(weave.Model):
     """Wraps the SwarmCast deliberation pipeline as a Weave Model."""
 
     model_name: str = "swarmcast-v1"
-    # optional callback to stream intermediate results (used by the WS route)
-    _emit: Any = None
 
     @weave.op
     async def predict(
@@ -65,9 +67,8 @@ class SwarmCastPredictor(weave.Model):
             )
             output["judging_status"] = "scored"
 
-        # Stream to WebSocket if a callback was attached
-        if self._emit:
-            await self._emit(output)
+        if _active_emit:
+            await _active_emit(output)
 
         return output
 
@@ -124,15 +125,14 @@ async def run_weave_evaluation(
     `emit` is an optional async callback called after each match completes —
     used by the WebSocket route to stream results to the browser.
     """
+    global _active_emit
     ensure_init()
 
     matches = await asyncio.to_thread(sample_2022, seed)
     rows = _matches_to_rows(matches)
 
     dataset = weave.Dataset(name="wc2022-backtest", rows=rows)
-
     model = SwarmCastPredictor(model_name=f"swarmcast-seed{seed}")
-    model._emit = emit
 
     evaluation = weave.Evaluation(
         name="wc2022-backtest",
@@ -140,7 +140,12 @@ async def run_weave_evaluation(
         scorers=load_evaluation_scorers(),
     )
 
-    summary = await evaluation.evaluate(model)
+    _active_emit = emit
+    try:
+        summary = await evaluation.evaluate(model)
+    finally:
+        _active_emit = None
+
     return summary
 
 

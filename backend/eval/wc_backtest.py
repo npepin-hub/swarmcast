@@ -1,11 +1,19 @@
 """2022 WC backtest — samples completed matches, runs SwarmCast, compares vs actual."""
 from __future__ import annotations
+import dataclasses
 import json
+import logging
+import pathlib
 import random
 from dataclasses import dataclass
 from typing import Any
 
 from ..data.wc26 import _call_history
+
+log = logging.getLogger(__name__)
+
+# Persisted match list — survives server restarts and API rate-limit windows
+_DISK_CACHE = pathlib.Path(__file__).parent / "wc2022_match_cache.json"
 
 
 @dataclass
@@ -28,6 +36,27 @@ _KNOWN_PENALTY_WINNERS: dict[str, str] = {
     "2018-054": "Croatia",    # Croatia beat Denmark 3-2
     "2018-055": "Russia",     # Russia beat Spain 4-3
 }
+
+# Static 2022 WC sample — used when the live API is unavailable (e.g., rate-limited)
+_FALLBACK_MATCHES: list[BacktestMatch] = [
+    # Group stage
+    BacktestMatch("2022-001", "Germany",   "Japan",       "group",         "Japan",      "1-2", "E"),
+    BacktestMatch("2022-002", "Argentina", "Saudi Arabia","group",         "Saudi Arabia","1-2","C"),
+    BacktestMatch("2022-003", "Spain",     "Costa Rica",  "group",         "Spain",      "7-0", "E"),
+    BacktestMatch("2022-004", "Morocco",   "Belgium",     "group",         "Morocco",    "2-0", "F"),
+    # Round of 16
+    BacktestMatch("2022-049", "Brazil",    "South Korea", "round of 16",   "Brazil",     "4-1"),
+    BacktestMatch("2022-050", "France",    "Poland",      "round of 16",   "France",     "3-1"),
+    BacktestMatch("2022-051", "Morocco",   "Spain",       "round of 16",   "Morocco",    "0-0 (pens)"),
+    BacktestMatch("2022-052", "England",   "Senegal",     "round of 16",   "England",    "3-0"),
+    # Quarter-finals
+    BacktestMatch("2022-057", "Croatia",   "Brazil",      "quarter_final", "Croatia",    "1-1 (pens)"),
+    BacktestMatch("2022-060", "Morocco",   "Portugal",    "quarter_final", "Morocco",    "1-0"),
+    # Semi-finals
+    BacktestMatch("2022-061", "Argentina", "Croatia",     "semi_final",    "Argentina",  "3-0"),
+    # Final
+    BacktestMatch("2022-064", "Argentina", "France",      "final",         "Argentina",  "3-3 (pens)"),
+]
 
 
 def _bracket_winners(year: int) -> dict[str, str]:
@@ -111,19 +140,49 @@ def _knockout_matches(year: int, stages: list[str], sample_per_stage: int = 2) -
     return result
 
 
+def _save_to_disk(matches: list[BacktestMatch]) -> None:
+    try:
+        _DISK_CACHE.write_text(
+            json.dumps([dataclasses.asdict(m) for m in matches], indent=2)
+        )
+        log.info("wc_backtest: saved %d matches to %s", len(matches), _DISK_CACHE)
+    except Exception as exc:
+        log.warning("wc_backtest: could not write cache: %s", exc)
+
+
+def _load_from_disk() -> list[BacktestMatch]:
+    try:
+        rows = json.loads(_DISK_CACHE.read_text())
+        matches = [BacktestMatch(**r) for r in rows]
+        log.info("wc_backtest: loaded %d matches from disk cache", len(matches))
+        return matches
+    except Exception:
+        return []
+
+
 def sample_2022(seed: int = 42) -> list[BacktestMatch]:
-    """Return ~12 representative 2022 WC matches across stages."""
+    """Return ~12 representative 2022 WC matches across stages.
+
+    Priority: live API → disk cache → static fallback.
+    Saves to disk whenever the live API returns data.
+    """
     random.seed(seed)
     matches: list[BacktestMatch] = []
-    # 4 group stage (1 per pair of groups — pick 4 of 8 groups)
     matches += _group_matches(2022, sample_per_group=1)[:4]
-    # 4 Round of 16
     matches += _knockout_matches(2022, ["round_of_16"], sample_per_stage=2)[:4]
-    # 2 Quarter-finals
     matches += _knockout_matches(2022, ["quarter_final"], sample_per_stage=1)[:2]
-    # Semi-finals + final (all 3 — small enough)
     matches += _knockout_matches(2022, ["semi_final", "final"], sample_per_stage=2)
-    return matches
+
+    if matches:
+        _save_to_disk(matches)
+        return matches
+
+    cached = _load_from_disk()
+    if cached:
+        return cached
+
+    log.warning("wc_backtest: API unavailable and no disk cache; using static fallback")
+    return list(_FALLBACK_MATCHES)
 
 
 def judge_prediction(predicted_prob_a: float, actual_winner: str,

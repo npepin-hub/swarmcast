@@ -19,6 +19,10 @@ backend/data/embeddings/
 *.sqlite
 *.db
 
+# Generated MCP API caches (populated at runtime)
+backend/data/mcp_disk_cache.json
+backend/eval/wc2022_match_cache.json
+
 # Weave / W&B
 wandb/
 

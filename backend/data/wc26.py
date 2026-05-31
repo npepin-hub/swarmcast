@@ -5,25 +5,97 @@ Two MCP servers:
   @zafronix/wc-mcp    — Historical WC data 1930-2026 (matches, rosters, brackets)
 
 Each _call*() spins up the relevant npx server, sends initialize + tools/call
-over stdin, and returns the text content.  Results are cached 1h.
+over stdin, and returns the text content.
+
+Caching layers (fastest → slowest):
+  1. In-memory  — 1h TTL (same process, hot path)
+  2. Disk cache — mcp_disk_cache.json next to this file
+                  * _call (live WC26):    24h TTL
+                  * _call_history (historical): no expiry (immutable data)
+  3. API call   — result saved to both layers; error responses are NOT cached
 """
 from __future__ import annotations
 import asyncio
 import json
+import logging
 import os
+import pathlib
 import subprocess
+import threading
 import time
 from ..config import settings
 
-_TTL = 3600
+log = logging.getLogger(__name__)
+
+_TTL = 3600           # in-memory TTL (seconds)
+_LIVE_DISK_TTL = 86400  # disk TTL for live WC26 data (24h)
 _cache: dict[str, tuple[float, str]] = {}
+
+# ---------- disk cache -------------------------------------------------------
+
+_DISK_CACHE_PATH = pathlib.Path(__file__).parent / "mcp_disk_cache.json"
+_disk_cache: dict[str, dict] = {}   # key → {"ts": float, "text": str}
+_disk_lock = threading.Lock()
+
+
+def _load_disk_cache() -> None:
+    with _disk_lock:
+        global _disk_cache
+        try:
+            _disk_cache = json.loads(_DISK_CACHE_PATH.read_text())
+            log.info("mcp disk cache loaded: %d entries", len(_disk_cache))
+        except FileNotFoundError:
+            _disk_cache = {}
+        except Exception as exc:
+            log.warning("mcp disk cache unreadable, starting fresh: %s", exc)
+            _disk_cache = {}
+
+
+def _flush_disk_cache() -> None:
+    # Caller must already hold _disk_lock
+    try:
+        snapshot = dict(_disk_cache)
+        _DISK_CACHE_PATH.write_text(json.dumps(snapshot, indent=2))
+    except Exception as exc:
+        log.warning("mcp disk cache write failed: %s", exc)
+
+
+def _disk_put(key: str, text: str) -> None:
+    """Store a successful (non-error) response and flush to disk."""
+    if not text or text.startswith("Error:"):
+        return
+    with _disk_lock:
+        _disk_cache[key] = {"ts": time.time(), "text": text}
+        _flush_disk_cache()
+
+
+def _disk_get(key: str, ttl: float | None) -> str | None:
+    """Return cached text if present and within TTL (None = infinite)."""
+    with _disk_lock:
+        entry = _disk_cache.get(key)
+    if not entry:
+        return None
+    if ttl is not None and time.time() - entry["ts"] > ttl:
+        return None
+    return entry["text"]
+
+
+_load_disk_cache()
+
+# ---------- MCP helpers ------------------------------------------------------
 
 
 def _call(tool: str, params: dict) -> str:
     key = f"{tool}:{json.dumps(params, sort_keys=True)}"
     now = time.time()
+
     if key in _cache and now - _cache[key][0] < _TTL:
         return _cache[key][1]
+
+    hit = _disk_get(key, _LIVE_DISK_TTL)
+    if hit is not None:
+        _cache[key] = (now, hit)
+        return hit
 
     stdin = (
         json.dumps({"jsonrpc": "2.0", "id": 1, "method": "initialize",
@@ -48,6 +120,7 @@ def _call(tool: str, params: dict) -> str:
             continue
 
     _cache[key] = (now, text)
+    _disk_put(key, text)
     return text
 
 
@@ -55,8 +128,15 @@ def _call_history(tool: str, params: dict) -> str:
     """Call a @zafronix/wc-mcp tool (historical WC data 1930-2026)."""
     key = f"wc:{tool}:{json.dumps(params, sort_keys=True)}"
     now = time.time()
+
     if key in _cache and now - _cache[key][0] < _TTL:
         return _cache[key][1]
+
+    # Historical data never changes — no TTL on disk
+    hit = _disk_get(key, None)
+    if hit is not None:
+        _cache[key] = (now, hit)
+        return hit
 
     stdin = (
         json.dumps({"jsonrpc": "2.0", "id": 1, "method": "initialize",
@@ -82,6 +162,7 @@ def _call_history(tool: str, params: dict) -> str:
             continue
 
     _cache[key] = (now, text)
+    _disk_put(key, text)
     return text
 
 
