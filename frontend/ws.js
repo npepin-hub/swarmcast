@@ -184,10 +184,41 @@ function escHtml(s) {
     .replace(/"/g, "&quot;");
 }
 
+function voteWinner(v) {
+  if (!v) return "draw";
+  if (v.team_a_goals > v.team_b_goals) return "a";
+  if (v.team_b_goals > v.team_a_goals) return "b";
+  return "draw";
+}
+
+function resolveWinnerLabel(v) {
+  const side = voteWinner(v);
+  if (side === "draw") return "Draw";
+  return side === "a" ? teamAName() : teamBName();
+}
+
+function roundChangeIndicator(prev, curr) {
+  if (!prev || !curr) return "";
+  const w1 = voteWinner(prev);
+  const w2 = voteWinner(curr);
+  if (w1 !== "draw" && w2 !== "draw" && w1 !== w2) {
+    return `<span class="flip-tag"><span class="flip-coin">🪙</span> flip</span>`;
+  }
+  if (w1 === w2 && Math.abs(curr.probability - prev.probability) > 0.10) {
+    const confDelta = curr.probability - prev.probability;
+    return confDelta > 0
+      ? `<span class="conf-tag conf-up">▲ confidence</span>`
+      : `<span class="conf-tag conf-dn">▼ confidence</span>`;
+  }
+  return "";
+}
+
 function fmtVoteCell(v) {
   if (!v) return "—";
+  const winner = resolveWinnerLabel(v);
   return `<div class="agg-vote-score">${v.team_a_goals}–${v.team_b_goals}</div>
-    <div class="agg-vote-pct">${(v.probability * 100).toFixed(1)}%</div>`;
+    <div class="agg-vote-pct">${(v.probability * 100).toFixed(1)}%</div>
+    <div class="agg-predicted-winner">${winner}</div>`;
 }
 
 function renderAggregateTable(consensus) {
@@ -211,6 +242,7 @@ function renderAggregateTable(consensus) {
     const color = agentColor(role);
     const focus = focusByRole[role] || "";
     const r1 = rounds.r1;
+    const rPrev = rounds[`r${nRounds - 1}`] || rounds.r1;
     const rFinal = rounds[`r${nRounds}`] || rounds[`r${maxVoteRound()}`] || r1;
     const delta = rFinal && r1
       ? ((rFinal.probability - r1.probability) * 100).toFixed(1)
@@ -220,6 +252,7 @@ function renderAggregateTable(consensus) {
       : "—";
     const signal = rFinal?.key_signal || r1?.key_signal || "";
     const reasoning = rFinal?.reasoning || r1?.reasoning || "";
+    const indicator = roundChangeIndicator(rPrev, rFinal);
 
     const roundCells = roundNums.map(n => {
       const v = rounds[`r${n}`];
@@ -233,7 +266,8 @@ function renderAggregateTable(consensus) {
       </td>
       ${roundCells}
       <td class="agg-delta">
-        <span class="delta ${parseFloat(delta) >= 0 ? "up" : "dn"}">${deltaStr}</span>
+        <div class="delta ${parseFloat(delta) >= 0 ? "up" : "dn"}">${deltaStr}</div>
+        ${indicator}
       </td>
     </tr>`;
 
@@ -344,7 +378,7 @@ function renderWinnerOdds({ teams, h2h, favorites }) {
 function renderMarket(snapshot, spread) {
   const isDerived = snapshot.market_id === "winner_odds_derived";
   // Update Polymarket column sublabel
-  const lbl = document.querySelector("#polymarket-col .prob-col-label, .prob-col:nth-child(3) .prob-col-label");
+  const lbl = document.getElementById("market-source-label");
   if (lbl) lbl.textContent = isDerived ? "Polymarket (H2H)" : "Polymarket";
 
   const swarmPct  = parseFloat(document.getElementById("consensus-p")?.textContent) || 0;
