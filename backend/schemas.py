@@ -9,7 +9,8 @@ from pydantic import BaseModel, Field
 class SpecialistDefinition(BaseModel):
     role: str
     system_prompt: str
-    data_slice_id: str  # key into the RAG / live-data context bundle
+    data_slice_id: str
+    focus: str = ""   # short descriptor shown in the fish speech bubble
 
 
 class AgentVote(BaseModel):
