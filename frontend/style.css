@@ -305,6 +305,71 @@ button#run-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 #result-panel h2 { font-size: 1rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 1rem; }
 
 .big-number { font-size: 3.5rem; font-weight: 800; }
+
+/* ── Consensus tile ──────────────────────────────────────────────────────── */
+
+.consensus-tile {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.tile-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 0 -0.25rem;
+}
+
+/* Versus block */
+.versus-block {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.versus-side {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  flex: 1;
+  min-width: 100px;
+}
+.our-side    { align-items: flex-start; }
+.market-side { align-items: flex-start; }
+
+.versus-source {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.versus-sub { font-size: 0.8rem; color: var(--muted); }
+
+.versus-label {
+  font-size: 1.8rem;
+  font-weight: 900;
+  color: var(--border);
+  letter-spacing: -0.02em;
+  flex-shrink: 0;
+  align-self: center;
+  padding-top: 1rem;
+}
+
+.versus-edge {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  border-left: 1px solid var(--border);
+  padding-left: 1.5rem;
+}
+
 .ci-label   { font-size: 0.85rem; color: var(--muted); }
 
 /* ── Probability comparison row ──────────────────────────────────────────── */
@@ -622,10 +687,23 @@ pre#bet-receipt {
 .agg-focus    { color: var(--muted); font-size: 0.72rem; white-space: nowrap; }
 .agg-signal   { color: var(--muted); max-width: 180px; }
 .agg-reasoning { color: var(--muted); max-width: 340px; line-height: 1.5; }
+.agg-predicted-winner { font-size: 0.7rem; color: var(--muted); margin-top: 0.2rem; }
 
 .delta     { font-size: 0.7rem; margin-left: 0.3rem; }
 .delta.up  { color: var(--green); }
 .delta.dn  { color: var(--red); }
+
+.flip-tag  { font-size: 0.72rem; font-weight: 600; margin-top: 0.25rem; display: inline-block; color: var(--accent); white-space: nowrap; }
+.flip-tag .flip-coin { font-size: 1.08rem; }
+
+.conf-tag  { font-size: 0.72rem; font-weight: 600; margin-top: 0.25rem; display: inline-block; white-space: nowrap; }
+.conf-up   { color: var(--green); }
+.conf-dn   { color: var(--red); }
+
+#aggregate-table th:nth-child(2),
+#aggregate-table td:nth-child(2),
+#aggregate-table th:nth-child(3),
+#aggregate-table td:nth-child(3) { width: 160px; min-width: 160px; }
 
 /* ── Agent card ──────────────────────────────────────────────────────────── */
 

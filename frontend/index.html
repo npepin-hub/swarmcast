@@ -97,8 +97,10 @@
     <section id="result-panel" class="hidden">
       <h2 class="section-label">Consensus</h2>
 
-      <!-- Swarm probability + verdict -->
-      <div id="consensus-display">
+      <!-- Prediction vs Market tile -->
+      <div id="consensus-display" class="consensus-tile">
+
+        <!-- Predicted score -->
         <div class="score-block">
           <span class="score-sublabel">Predicted score</span>
           <div class="score-row">
@@ -107,28 +109,32 @@
             <span id="score-team-b" class="score-team"></span>
           </div>
         </div>
-        <!-- Side-by-side probability comparison -->
-        <div class="prob-comparison" style="margin-top:0.75rem">
-          <div class="prob-col">
-            <span class="prob-col-label">SwarmCast</span>
+
+        <div class="tile-divider"></div>
+
+        <!-- Our prediction vs Polymarket -->
+        <div class="versus-block">
+          <div class="versus-side our-side">
+            <span class="versus-source">Our prediction</span>
             <span id="consensus-p" class="big-number">—</span>
-            <span id="consensus-team-label" class="consensus-team"></span>
+            <span id="consensus-team-label" class="versus-sub"></span>
           </div>
 
-          <div class="prob-vs">vs</div>
+          <div class="versus-label">VS</div>
 
-          <div class="prob-col">
-            <span class="prob-col-label">Polymarket</span>
+          <div class="versus-side market-side">
+            <span class="versus-source" id="market-source-label">Polymarket</span>
             <span id="market-p-inline" class="big-number muted-num">—</span>
-            <span class="consensus-team">market implied</span>
+            <span class="versus-sub">market implied</span>
           </div>
 
-          <div id="spread-col" class="prob-col hidden">
-            <span class="prob-col-label">Edge</span>
+          <div id="spread-col" class="versus-edge hidden">
+            <span class="versus-source">Edge</span>
             <span id="spread-badge" class="spread-badge" title="">—</span>
-            <span id="edge-verdict" class="consensus-team"></span>
+            <span id="edge-verdict" class="versus-sub"></span>
           </div>
         </div>
+
         <p id="consensus-plain" class="consensus-plain"></p>
         <p id="consensus-dissent" class="consensus-dissent hidden"></p>
       </div>
