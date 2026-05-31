@@ -145,16 +145,19 @@ window.setSwarmPhase = (newPhase) => {
  * offset by 30° so we never start at pure red (which looks like an error state).
  * specialists: [{ role, system_prompt, data_slice_id }, ...]
  */
+// Fixed palette — visually distinct, no purple (260-320° excluded)
+const HUE_PALETTE = [0, 22, 48, 80, 145, 175, 200, 225, 355];
+//                   red  org  yel  lime  grn  teal  sky  blue  rose
+
 window.assignRoles = (specialists) => {
   if (!specialists || specialists.length === 0) return;
 
-  const n   = specialists.length;
-  const step = 360 / n;
+  const n = specialists.length;
 
   // Clear and rebuild the hue map for this run
   Object.keys(ROLE_HUES).forEach(k => delete ROLE_HUES[k]);
   specialists.forEach((s, idx) => {
-    ROLE_HUES[s.role] = Math.round((30 + idx * step) % 360);
+    ROLE_HUES[s.role] = HUE_PALETTE[idx % HUE_PALETTE.length];
   });
 
   // Assign boid groups
