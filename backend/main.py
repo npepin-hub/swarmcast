@@ -73,8 +73,8 @@ async def run_pipeline(req: ForecastRequest) -> ForecastResult:
     async def emit(event: WSEventType, payload):
         await manager.broadcast(WSMessage(event=event, payload=payload))
 
-    # Layer 0 — WC26 MCP data (replaces static RAG + live API)
-    contexts = build_context_bundle(req.team_a, req.team_b, req.competition_id)
+    # Layer 0 — WC26 MCP data (replaces static RAG + live API; 13 subprocess calls run concurrently)
+    contexts = await build_context_bundle(req.team_a, req.team_b, req.competition_id)
 
     # Layer 1 — meta-orchestrator spawns specialists
     specialists = spawn_specialists(req.match_query)
