@@ -31,6 +31,8 @@ class Settings(BaseSettings):
     wandb_critic_model: str = "OpenPipe/Qwen3-14B-Instruct"
     wandb_delphi_model: str = "OpenPipe/Qwen3-14B-Instruct"
     use_langgraph_delphi: bool = True
+    specialist_use_mcp_tools: bool = True
+    specialist_mcp_recursion_limit: int = 10
 
     wc_api_key: str = ""
     football_data_api_key: str = ""

@@ -26,3 +26,11 @@ def minority_dissent(votes: list[AgentVote], mean_p: float, std: float) -> list[
     if std < 1e-6:
         return []
     return [v for v in votes if abs(v.probability - mean_p) > std]
+
+
+def weighted_score_consensus(votes: list[AgentVote]) -> tuple[float, float]:
+    """Confidence-weighted mean predicted goals for each side."""
+    total_w = sum(v.confidence for v in votes) or 1.0
+    goals_a = sum(v.team_a_goals * v.confidence for v in votes) / total_w
+    goals_b = sum(v.team_b_goals * v.confidence for v in votes) / total_w
+    return goals_a, goals_b

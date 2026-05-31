@@ -15,7 +15,8 @@ from ..config import settings
 from ..schemas import AgentVote, SpecialistDefinition
 from .consensus import weighted_consensus
 from .inference import VOTE_JSON, extract_json_object
-from .specialists import _parse_vote, run_specialist
+from .specialist_react import run_specialist_with_mcp_async
+from .vote_parse import parse_vote
 
 ORCHESTRATOR_NAME = "orchestrator"
 ORCHESTRATOR_PROMPT = """You coordinate the Delphi revision round.
@@ -78,7 +79,7 @@ def _build_swarm(roles: list[str]) -> object:
 def _extract_vote(messages: list, role: str) -> AgentVote | None:
     for msg in reversed(messages):
         if isinstance(msg, AIMessage) and getattr(msg, "name", None) == role:
-            vote = _parse_vote(str(msg.content), role, 2)
+            vote = parse_vote(str(msg.content), role, 2)
             if vote.uncertainty_flag and vote.key_signal == "parse_error":
                 continue
             return vote
@@ -93,6 +94,7 @@ async def run_delphi_langgraph(
     team_a: str,
     team_b: str,
     contexts: dict[str, str],
+    group: str = "",
 ) -> list[AgentVote]:
     """Delphi round 2: sparse signal + LangGraph Swarm revision per specialist."""
     mean_p, ci_low, ci_high = weighted_consensus(round1_votes)
@@ -111,7 +113,7 @@ async def run_delphi_langgraph(
         prompt = (
             f"{spec.system_prompt}\n\n{delphi_signal}\n\n"
             f"Match: {match_query}\nTeam A={team_a}, Team B={team_b}\n"
-            f"Context:\n{ctx}\n\nSubmit revised vote. {VOTE_JSON}"
+            f"Context:\n{ctx}\n\nSubmit revised score and win probability. {VOTE_JSON}"
         )
         seed = HumanMessage(content=prompt)
         config = {
@@ -127,15 +129,15 @@ async def run_delphi_langgraph(
         if vote:
             revised.append(vote)
         else:
-            vote = await asyncio.to_thread(
-                run_specialist,
+            vote = await run_specialist_with_mcp_async(
                 spec,
                 match_query,
                 team_a,
                 team_b,
-                ctx,
-                2,
-                settings.wandb_delphi_model,
+                f"{delphi_signal}\n\n{ctx}",
+                round=2,
+                group=group,
+                model=settings.wandb_delphi_model,
             )
             revised.append(vote)
 

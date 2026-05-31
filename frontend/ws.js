@@ -66,6 +66,7 @@ function addAgentCard(vote) {
   card.style.borderLeftColor = color;
   card.innerHTML  = `
     <div class="role" style="color:${color}">${vote.role.replace(/_/g, " ")} · round ${vote.round}</div>
+    <div class="score">${vote.team_a_goals}–${vote.team_b_goals}</div>
     <div class="prob">${(vote.probability * 100).toFixed(1)}%
       <span class="prob-label">P(${teamAName()} wins)</span>
     </div>
@@ -115,11 +116,14 @@ function renderConsensus(consensus) {
   const pct     = (consensus.probability * 100).toFixed(1);
   const lo      = (consensus.ci_low  * 100).toFixed(1);
   const hi      = (consensus.ci_high * 100).toFixed(1);
+  const scoreA  = Math.round(consensus.team_a_goals ?? 0);
+  const scoreB  = Math.round(consensus.team_b_goals ?? 0);
   const nAgents = consensus.all_votes?.length ?? Object.keys(votesByRole).length;
   const dissent = consensus.minority_dissent?.length ?? 0;
 
+  setText("consensus-score", `${scoreA}–${scoreB}`);
   setText("consensus-p", `${pct}%`);
-  setText("consensus-team-label", `chance ${team} wins`);
+  setText("consensus-team-label", `predicted score · P(${team} wins)`);
   setText("consensus-plain", "");   // verdict fills this when it arrives
 
   const dissentEl = document.getElementById("consensus-dissent");
@@ -147,10 +151,13 @@ function renderAggregateTable() {
     const deltaStr = delta !== "—"
       ? (parseFloat(delta) >= 0 ? `+${delta}pp` : `${delta}pp`)
       : "—";
+    const fmt = (v) => v
+      ? `${v.team_a_goals}–${v.team_b_goals} · ${(v.probability * 100).toFixed(1)}%`
+      : "—";
     return `<tr>
       <td style="color:${color};font-weight:600">${role.replace(/_/g, " ")}</td>
-      <td>${r1 ? (r1.probability * 100).toFixed(1) + "%" : "—"}</td>
-      <td>${r2 ? (r2.probability * 100).toFixed(1) + "%" : "—"}
+      <td>${fmt(r1)}</td>
+      <td>${fmt(r2)}
         <span class="delta ${parseFloat(delta) >= 0 ? "up" : "dn"}">${deltaStr}</span>
       </td>
       <td class="agg-signal">${r2?.key_signal || r1?.key_signal || ""}</td>

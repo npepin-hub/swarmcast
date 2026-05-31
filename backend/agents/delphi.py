@@ -7,7 +7,7 @@ import weave
 
 from ..config import settings
 from ..schemas import AgentVote, ConsensusResult, SpecialistDefinition
-from .consensus import _std, minority_dissent, weighted_consensus
+from .consensus import _std, minority_dissent, weighted_consensus, weighted_score_consensus
 from .inference import inference_chat
 from .specialists import run_swarm
 
@@ -15,9 +15,12 @@ from .specialists import run_swarm
 @weave.op()
 def aggregate(votes: list[AgentVote]) -> ConsensusResult:
     mean_p, ci_low, ci_high = weighted_consensus(votes)
+    goals_a, goals_b = weighted_score_consensus(votes)
     std = _std(votes, mean_p)
     dissent = minority_dissent(votes, mean_p, std)
     return ConsensusResult(
+        team_a_goals=goals_a,
+        team_b_goals=goals_b,
         probability=mean_p,
         ci_low=ci_low,
         ci_high=ci_high,
@@ -70,12 +73,19 @@ async def run_delphi_round(
     team_a: str,
     team_b: str,
     contexts: dict[str, str],
+    group: str = "",
 ) -> list[AgentVote]:
     """Round 2: Delphi signal + LangGraph Swarm revision (fallback: parallel W&B)."""
     if settings.use_langgraph_delphi:
         from .swarm_langgraph import run_delphi_langgraph
         return await run_delphi_langgraph(
-            specialists, round1_votes, match_query, team_a, team_b, contexts
+            specialists,
+            round1_votes,
+            match_query,
+            team_a,
+            team_b,
+            contexts,
+            group,
         )
     mean_p, ci_low, ci_high = weighted_consensus(round1_votes)
     delphi_addendum = (
@@ -98,5 +108,6 @@ async def run_delphi_round(
         team_b,
         contexts,
         round=2,
+        group=group,
         model=settings.wandb_delphi_model,
     )

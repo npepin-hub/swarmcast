@@ -120,6 +120,10 @@ def _squad_context(profile_json: str, team: str) -> str:
 
     return "\n".join(lines)
 
+# Public aliases for MCP tool invocations from specialist agents
+call_wc26 = _call
+call_wc_history = _call_history
+
 
 def get_groups_data() -> dict:
     """Fetch all 12 WC 2026 groups with teams and matches. Cached for the session."""
