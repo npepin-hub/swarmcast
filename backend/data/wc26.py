@@ -85,6 +85,11 @@ def _call_history(tool: str, params: dict) -> str:
     return text
 
 
+# Public aliases for MCP tool invocations from specialist agents
+call_wc26 = _call
+call_wc_history = _call_history
+
+
 def get_groups_data() -> dict:
     """Fetch all 12 WC 2026 groups with teams and matches. Cached for the session."""
     raw = _call("get_groups", {})

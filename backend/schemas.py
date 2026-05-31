@@ -14,6 +14,8 @@ class SpecialistDefinition(BaseModel):
 
 class AgentVote(BaseModel):
     role: str
+    team_a_goals: int = Field(ge=0, le=20, description="Predicted goals for team A")
+    team_b_goals: int = Field(ge=0, le=20, description="Predicted goals for team B")
     probability: float = Field(ge=0.0, le=1.0)
     confidence: float = Field(ge=0.0, le=1.0)
     key_signal: str
@@ -45,6 +47,8 @@ class CritiqueOutput(BaseModel):
 # ── Delphi / consensus layer ──────────────────────────────────────────────────
 
 class ConsensusResult(BaseModel):
+    team_a_goals: float
+    team_b_goals: float
     probability: float = Field(ge=0.0, le=1.0)
     ci_low: float
     ci_high: float

@@ -34,6 +34,7 @@ async def run_deliberation(
     team_b: str,
     contexts: dict[str, str],
     emit: EmitFn = None,
+    group: str = "",
 ) -> DeliberationResult:
     swarm_run_id = str(uuid.uuid4())
     with weave.attributes(
@@ -48,7 +49,7 @@ async def run_deliberation(
             await emit(WSEventType.spawning, [s.model_dump() for s in specialists])
 
         round1_votes = await run_swarm(
-            specialists, match_query, team_a, team_b, contexts, round=1
+            specialists, match_query, team_a, team_b, contexts, round=1, group=group
         )
         if emit:
             for v in round1_votes:
@@ -66,6 +67,7 @@ async def run_deliberation(
             team_a,
             team_b,
             contexts,
+            group,
         )
         if emit:
             for v in round2_votes:
