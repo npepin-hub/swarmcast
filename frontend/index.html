@@ -79,7 +79,7 @@
         <span class="run-bar-m" id="selected-match-label"></span>
       </div>
       <div class="run-bar-actions">
-        <input id="market-id" type="text" placeholder="Polymarket ID (optional)" />
+        <input id="market-id" type="hidden" />
         <button id="run-btn">Run SwarmCast</button>
       </div>
     </div>
@@ -108,13 +108,16 @@
         <p id="consensus-dissent" class="consensus-dissent hidden"></p>
       </div>
 
+      <!-- Bar chart summary — moves here on consensus -->
+      <div id="bar-chart" class="hidden" style="margin-top:1.5rem"><div id="bars"></div></div>
+
       <!-- Final aggregate table — all agents at a glance -->
       <div id="aggregate-table-wrap" class="hidden">
         <h3 class="section-label" style="margin-top:1.5rem">Final Vote — All Agents</h3>
         <table id="aggregate-table">
           <thead>
             <tr>
-              <th>Agent</th><th>Round 1</th><th>Round 2</th>
+              <th>Agent</th><th>Focus</th><th>Round 1</th><th>Round 2</th>
               <th>Key signal</th><th>Reasoning</th>
             </tr>
           </thead>
@@ -148,7 +151,6 @@
     <section id="agent-feed" class="hidden">
       <h2 class="section-label">Agent Panel</h2>
       <div id="agent-cards"></div>
-      <div id="bar-chart"><div id="bars"></div></div>
     </section>
 
     <!-- ── Critic ─────────────────────────────────────────────────────────── -->

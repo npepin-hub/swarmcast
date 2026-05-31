@@ -50,10 +50,10 @@ function teamAName() {
   return window.selectedMatch?.team_a || "Team A";
 }
 
-const votesByRole = {};   // role → { r1: AgentVote, r2: AgentVote }
+const votesByRole = {};    // role → { r1: AgentVote, r2: AgentVote }
+const focusByRole = {};    // role → focus string from specialist definition
 
 function addAgentCard(vote) {
-  // Track votes for final aggregate table
   if (!votesByRole[vote.role]) votesByRole[vote.role] = {};
   votesByRole[vote.role][`r${vote.round}`] = vote;
 
@@ -61,19 +61,39 @@ function addAgentCard(vote) {
   const existing  = document.getElementById(`card-${vote.role}`);
   const card      = existing || document.createElement("div");
   const color     = agentColor(vote.role);
-  card.id         = `card-${vote.role}`;
-  card.className  = `agent-card${vote.round === 2 ? " round2" : ""}`;
+  const r1        = votesByRole[vote.role].r1;
+  const r2        = votesByRole[vote.role].r2;
+
+  card.id    = `card-${vote.role}`;
+  card.className = "agent-card";
   card.style.borderLeftColor = color;
-  card.innerHTML  = `
-    <div class="role" style="color:${color}">${vote.role.replace(/_/g, " ")} · round ${vote.round}</div>
-    <div class="score">${vote.team_a_goals}–${vote.team_b_goals}</div>
-    <div class="prob">${(vote.probability * 100).toFixed(1)}%
+
+  const r1Row = r1 ? `
+    <div class="round-row">
+      <span class="round-tag">R1</span>
+      <span class="round-pct">${(r1.probability * 100).toFixed(1)}%</span>
       <span class="prob-label">P(${teamAName()} wins)</span>
-    </div>
-    <div class="signal"><strong>Key signal:</strong> ${vote.key_signal}</div>
-    <div class="reasoning">${vote.reasoning}</div>
-    ${vote.uncertainty_flag ? '<div class="flag">⚠ Low data confidence</div>' : ""}
+    </div>` : "";
+
+  const r2Row = r2 ? `
+    <div class="round-row round2-row">
+      <span class="round-tag r2">R2</span>
+      <span class="round-pct">${(r2.probability * 100).toFixed(1)}%</span>
+      <span class="prob-label">P(${teamAName()} wins)</span>
+      ${r1 ? `<span class="delta ${r2.probability >= r1.probability ? "up" : "dn"}">
+        ${r2.probability >= r1.probability ? "+" : ""}${((r2.probability - r1.probability) * 100).toFixed(1)}pp
+      </span>` : ""}
+    </div>` : "";
+
+  const latest = r2 || r1;
+  card.innerHTML = `
+    <div class="role" style="color:${color}">${vote.role.replace(/_/g, " ")}</div>
+    ${r1Row}${r2Row}
+    <div class="signal"><strong>Key signal:</strong> ${latest.key_signal}</div>
+    <div class="reasoning">${latest.reasoning}</div>
+    ${latest.uncertainty_flag ? '<div class="flag">⚠ Low data confidence</div>' : ""}
   `;
+
   if (!existing) container.appendChild(card);
   updateBarChart(vote, color);
   window.pulseRole?.(vote.role);
@@ -132,10 +152,9 @@ function renderConsensus(consensus) {
   dissentEl.textContent = ciText;
   dissentEl.classList.remove("hidden");
 
+  show("bar-chart");
   renderAggregateTable();
-
-  // Cards are redundant once the aggregate table is up — remove them
-  document.getElementById("agent-cards").innerHTML = "";
+  hide("agent-feed");
 }
 
 function renderAggregateTable() {
@@ -154,8 +173,10 @@ function renderAggregateTable() {
     const fmt = (v) => v
       ? `${v.team_a_goals}–${v.team_b_goals} · ${(v.probability * 100).toFixed(1)}%`
       : "—";
+    const focus = focusByRole[role] || "";
     return `<tr>
       <td style="color:${color};font-weight:600">${role.replace(/_/g, " ")}</td>
+      <td class="agg-focus">${focus}</td>
       <td>${fmt(r1)}</td>
       <td>${fmt(r2)}
         <span class="delta ${parseFloat(delta) >= 0 ? "up" : "dn"}">${deltaStr}</span>
@@ -269,6 +290,7 @@ function handleEvent(msg) {
     case "spawning":
       window.assignRoles?.(msg.payload);
       renderLegend(msg.payload);
+      msg.payload.forEach(s => { if (s.focus) focusByRole[s.role] = s.focus; });
       window.setSwarmPhase?.("deliberating");
       break;
     case "agent_vote":
@@ -356,6 +378,7 @@ document.getElementById("run-btn").addEventListener("click", async () => {
   ["critic-panel", "result-panel", "winner-odds-display",
    "market-display", "edge-display"].forEach(hide);
   Object.keys(votesByRole).forEach(k => delete votesByRole[k]);
+  Object.keys(focusByRole).forEach(k => delete focusByRole[k]);
   const aggWrap = document.getElementById("aggregate-table-wrap");
   if (aggWrap) aggWrap.classList.add("hidden");
   show("viz-panel");

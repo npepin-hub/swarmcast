@@ -564,6 +564,7 @@ pre#bet-receipt {
 #aggregate-table tr:last-child td { border-bottom: none; }
 #aggregate-table tr:hover td { background: rgba(255,255,255,0.02); }
 
+.agg-focus    { color: var(--muted); font-size: 0.72rem; white-space: nowrap; }
 .agg-signal   { color: var(--muted); max-width: 180px; }
 .agg-reasoning { color: var(--muted); max-width: 340px; line-height: 1.5; }
 
@@ -571,11 +572,31 @@ pre#bet-receipt {
 .delta.up  { color: var(--green); }
 .delta.dn  { color: var(--red); }
 
-/* ── Agent card reasoning ────────────────────────────────────────────────── */
+/* ── Agent card ──────────────────────────────────────────────────────────── */
 
-.agent-card .prob { font-size: 1.8rem; font-weight: 700; display: flex; align-items: baseline; gap: 0.5rem; }
-.agent-card .prob .prob-label { font-size: 0.68rem; color: var(--muted); font-weight: 400; }
-.agent-card .signal { font-size: 0.82rem; color: var(--text); margin: 0.4rem 0 0.2rem; }
+.agent-card .role  { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 0.5rem; }
+
+.round-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  margin-bottom: 0.25rem;
+}
+.round-tag {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--muted);
+  background: rgba(255,255,255,0.06);
+  border-radius: 3px;
+  padding: 0 4px;
+  flex-shrink: 0;
+}
+.round-tag.r2 { color: var(--accent); }
+.round2-row   { margin-bottom: 0.5rem; }
+.round-pct    { font-size: 1.5rem; font-weight: 700; }
+.prob-label   { font-size: 0.68rem; color: var(--muted); }
+
+.agent-card .signal { font-size: 0.82rem; color: var(--text); margin-bottom: 0.25rem; }
 .agent-card .signal strong { color: var(--muted); font-weight: 500; }
 .agent-card .reasoning { font-size: 0.78rem; color: var(--muted); line-height: 1.6; }
 
