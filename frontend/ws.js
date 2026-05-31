@@ -423,6 +423,16 @@ function updateRunBar() {
   if (!match) return;
   const qlabel = document.getElementById("run-bar-question-label");
   if (qlabel) qlabel.textContent = QUESTION_LABELS[selectedQuestion] || selectedQuestion;
+  const matchLabel = document.getElementById("selected-match-label");
+  if (matchLabel) {
+    const datePart = match.match_date
+      ? new Date(match.match_date + "T00:00:00Z").toLocaleDateString("en-US", {
+          month: "short", day: "numeric", year: "numeric", timeZone: "UTC",
+        })
+      : "";
+    const meta = [match.competition, datePart].filter(Boolean).join(" · ");
+    matchLabel.textContent = meta ? `${match.label} · ${meta}` : match.label;
+  }
   document.getElementById("run-bar").classList.remove("hidden");
 }
 
@@ -461,8 +471,12 @@ document.getElementById("run-btn").addEventListener("click", async () => {
     match_query: matchQuery,
     team_a: match.team_a,
     team_b: match.team_b,
-    competition_id: match.group || "",
-    match_date: match.date || "",   // ISO date e.g. "2026-06-11" from bracket
+    home_team_code: match.home_team_code || "",
+    away_team_code: match.away_team_code || "",
+    match_date: match.match_date || "",
+    competition: match.competition || "",
+    competition_id: match.competition_id || match.group || "",
+    match_id: match.match_id || "",
     polymarket_market_id: document.getElementById("market-id").value.trim(),
   };
 

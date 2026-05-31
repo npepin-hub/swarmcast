@@ -11,7 +11,7 @@ const KNOCKOUT_ROUNDS = [
   { label: "Final",          slots: 1 },
 ];
 
-let selectedMatch = null;   // { team_a, team_b, group, match_id, label }
+let selectedMatch = null;   // populated in selectMatch()
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -34,19 +34,26 @@ function selectMatch(row, match, groupId) {
   const teamA = stripFlag(homeRaw);
   const teamB = stripFlag(awayRaw);
 
+  const round = match.round || "Group Stage";
+  const competition = groupId
+    ? `${round} · Group ${groupId}`
+    : round;
+
   selectedMatch = {
     team_a: teamA,
     team_b: teamB,
+    home_team_code: (match.home_team_id || "").toLowerCase(),
+    away_team_code: (match.away_team_id || "").toLowerCase(),
+    match_date: match.date || "",
+    competition_id: groupId || "",
+    competition,
+    round,
     group: groupId,
-    match_id: match.id,
-    date: match.date || "",   // ISO date e.g. "2026-06-11"
+    match_id: match.id || "",
     label: `${homeRaw} vs ${awayRaw}`,
   };
   window.selectedMatch = selectedMatch;
 
-  // Update run bar match label and notify ws.js
-  const matchLabel = document.getElementById("selected-match-label");
-  if (matchLabel) matchLabel.textContent = selectedMatch.label;
   window.onMatchSelected?.();
 }
 

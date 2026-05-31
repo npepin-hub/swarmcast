@@ -15,9 +15,14 @@ from .agents.delphi import synthesize_verdict
 from .config import settings
 from .data.wc26 import build_context_bundle, get_groups_data
 from .market.edge import detect_and_act
-from .market.gamma import find_wc_market, fetch_winner_odds, fetch_winner_odds, fetch_top_wc_favorites, get_match_markets
+from .market.gamma import (
+    fetch_winner_odds,
+    fetch_top_wc_favorites,
+    get_match_markets,
+    resolve_wc_moneyline_market,
+)
 from .observability import weave_tracer
-from .schemas import ForecastResult, WSEventType, WSMessage
+from .schemas import ForecastResult, MarketSnapshot, WSEventType, WSMessage
 from .eval.router import router as eval_router
 
 
@@ -58,10 +63,12 @@ class ForecastRequest(BaseModel):
     match_query: str
     team_a: str
     team_b: str
-    team_a_id: int = 0
-    team_b_id: int = 0
-    competition_id: str = ""
-    match_date: str = ""            # ISO date e.g. "2026-06-11" — enables 3-way match markets
+    home_team_code: str = ""
+    away_team_code: str = ""
+    match_date: str = ""          # ISO date YYYY-MM-DD from bracket
+    competition: str = ""         # e.g. "Group Stage · Group I"
+    competition_id: str = ""      # group letter for standings MCP
+    match_id: str = ""
     polymarket_market_id: str = ""
 
 
@@ -71,24 +78,37 @@ def run_market_validation(
     team_a: str,
     team_b: str,
     polymarket_market_id: str,
+    match_date: str = "",
+    home_team_code: str = "",
+    away_team_code: str = "",
 ):
-    """Try match market first, fall back to winner-odds derived H2H probability."""
+    """Resolve exact match moneyline via Gamma slug; fall back to winner-odds H2H."""
+    market_id = ""
+    event_slug = ""
     try:
-        market_id = polymarket_market_id or find_wc_market(team_a, team_b) or ""
+        market_id, event_slug = resolve_wc_moneyline_market(
+            team_a,
+            team_b,
+            polymarket_market_id=polymarket_market_id,
+            match_date=match_date,
+            home_team_code=home_team_code,
+            away_team_code=away_team_code,
+        )
         if market_id:
-            return detect_and_act(consensus_probability, market_id)
+            snapshot, spread, edge_detected, bet_receipt = detect_and_act(
+                consensus_probability, market_id
+            )
+            return snapshot, spread, edge_detected, bet_receipt, market_id, event_slug
     except Exception as exc:
         print(f"[market] match market skipped: {exc}")
 
-    # Fallback: derive head-to-head probability from Polymarket tournament winner odds
     try:
         odds = fetch_winner_odds(team_a, team_b)
-        p_a = odds.get(team_a, odds.get(list(odds.keys())[0] if odds else team_a))
-        p_b = odds.get(team_b, odds.get(list(odds.keys())[-1] if odds else team_b))
+        p_a = odds.get(team_a)
+        p_b = odds.get(team_b)
         if p_a and p_b:
             total = p_a.market_probability + p_b.market_probability
             if total > 0:
-                from .schemas import MarketSnapshot
                 h2h_p = p_a.market_probability / total
                 spread = abs(consensus_probability - h2h_p)
                 snapshot = MarketSnapshot(
@@ -97,11 +117,12 @@ def run_market_validation(
                     volume_24h=None,
                     open_interest=None,
                 )
-                return snapshot, spread, spread > 0.08, None
+                edge_detected = spread > settings.edge_threshold
+                return snapshot, spread, edge_detected, None, "winner_odds_derived", event_slug
     except Exception as exc:
         print(f"[market] winner odds fallback skipped: {exc}")
 
-    return None, None, False, None
+    return None, None, False, None, market_id, event_slug
 
 
 @weave.op()
@@ -109,6 +130,22 @@ async def run_forecast_pipeline(req: ForecastRequest) -> ForecastResult:
     async def emit(event: WSEventType, payload):
         await manager.broadcast(WSMessage(event=event, payload=payload))
 
+    trace_meta = {
+        "match_id": req.match_id,
+        "match_date": req.match_date,
+        "competition": req.competition,
+        "competition_id": req.competition_id,
+        "home_team_code": req.home_team_code,
+        "away_team_code": req.away_team_code,
+    }
+    with weave.attributes(trace_meta):
+        return await _run_forecast_pipeline_inner(req, emit)
+
+
+async def _run_forecast_pipeline_inner(
+    req: ForecastRequest,
+    emit,
+) -> ForecastResult:
     contexts = await build_context_bundle(req.team_a, req.team_b, req.competition_id)
     result = await run_deliberation(
         req.match_query,
@@ -117,6 +154,8 @@ async def run_forecast_pipeline(req: ForecastRequest) -> ForecastResult:
         contexts,
         emit=emit,
         group=req.competition_id,
+        match_date=req.match_date,
+        competition=req.competition,
     )
 
     forecast = ForecastResult(
@@ -164,17 +203,23 @@ async def run_forecast_pipeline(req: ForecastRequest) -> ForecastResult:
             "favorites": top_favorites,
         })
 
-    snapshot, spread, edge_detected, bet_receipt = await asyncio.to_thread(
-        run_market_validation,
-        forecast.consensus.probability,
-        req.team_a,
-        req.team_b,
-        req.polymarket_market_id,
+    snapshot, spread, edge_detected, bet_receipt, market_id, event_slug = (
+        await asyncio.to_thread(
+            run_market_validation,
+            forecast.consensus.probability,
+            req.team_a,
+            req.team_b,
+            req.polymarket_market_id,
+            req.match_date,
+            req.home_team_code,
+            req.away_team_code,
+        )
     )
-    # Always emit so the frontend always gets a market probability
     await emit(WSEventType.market_check, {
         "snapshot": snapshot.model_dump() if snapshot else None,
         "spread": spread,
+        "market_id": market_id,
+        "event_slug": event_slug,
     })
     await emit(WSEventType.edge_result, {
         "edge_detected": edge_detected,

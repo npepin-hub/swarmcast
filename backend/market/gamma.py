@@ -186,6 +186,71 @@ def fetch_top_wc_favorites(n: int = 5) -> list[dict]:
     return results[:n]
 
 
+_COUNTRY_TO_FIFA = {name.lower(): code for code, name in _FIFA_NAMES.items()}
+
+
+def build_wc_event_slug(home_code: str, away_code: str, match_date: str) -> str:
+    """Polymarket WC match event slug, e.g. fifwc-fra-sen-2026-06-16."""
+    return f"fifwc-{home_code.lower()}-{away_code.lower()}-{match_date}"
+
+
+def fetch_event_by_slug(slug: str) -> dict | None:
+    with httpx.Client(timeout=10) as c:
+        r = c.get(f"{_GAMMA_BASE}/events", params={"slug": slug})
+        r.raise_for_status()
+        events = r.json()
+    return events[0] if events else None
+
+
+def _team_label(team: str) -> str:
+    """Strip flag emoji prefix; return country name for matching."""
+    parts = team.strip().split()
+    if len(parts) >= 2 and len(parts[0]) <= 4:
+        return " ".join(parts[1:])
+    return team.strip()
+
+
+def moneyline_market_for_team_a(event: dict, team_a: str) -> str | None:
+    """Return Gamma market id for 'team A wins' within a match event."""
+    label = _team_label(team_a).lower()
+    for m in event.get("markets", []):
+        git = (m.get("groupItemTitle") or "").lower()
+        if git == label or label in git:
+            return m.get("id")
+        q = (m.get("question") or "").lower()
+        if label in q and "win" in q:
+            return m.get("id")
+    return None
+
+
+def resolve_wc_moneyline_market(
+    team_a: str,
+    team_b: str,
+    *,
+    polymarket_market_id: str = "",
+    match_date: str = "",
+    home_team_code: str = "",
+    away_team_code: str = "",
+) -> tuple[str, str]:
+    """
+    Resolve Polymarket moneyline market id for P(team_a wins).
+    Returns (market_id, event_slug_attempted).
+    """
+    if polymarket_market_id:
+        return polymarket_market_id, ""
+
+    if match_date and home_team_code and away_team_code:
+        slug = build_wc_event_slug(home_team_code, away_team_code, match_date)
+        event = fetch_event_by_slug(slug)
+        if event:
+            mid = moneyline_market_for_team_a(event, team_a)
+            if mid:
+                return mid, slug
+
+    mid = find_wc_market(team_a, team_b)
+    return (mid or ""), ""
+
+
 def find_wc_market(team_a: str, team_b: str) -> str | None:
     """Search for an active WC match market. Returns market_id or None."""
     name_a = _FIFA_NAMES.get(team_a.upper(), team_a).lower()
