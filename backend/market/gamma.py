@@ -243,16 +243,17 @@ def resolve_wc_moneyline_market(
     if polymarket_market_id:
         return polymarket_market_id, ""
 
+    attempted_slug = ""
     if match_date and home_team_code and away_team_code:
-        slug = build_wc_event_slug(home_team_code, away_team_code, match_date)
-        event = fetch_event_by_slug(slug)
+        attempted_slug = build_wc_event_slug(home_team_code, away_team_code, match_date)
+        event = fetch_event_by_slug(attempted_slug)
         if event:
             mid = moneyline_market_for_team_a(event, team_a)
             if mid:
-                return mid, slug
+                return mid, attempted_slug
 
     mid = find_wc_market(team_a, team_b)
-    return (mid or ""), ""
+    return (mid or ""), attempted_slug
 
 
 def find_wc_market(team_a: str, team_b: str) -> str | None:

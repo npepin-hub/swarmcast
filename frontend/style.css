@@ -352,6 +352,21 @@ button#run-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .versus-sub { font-size: 0.8rem; color: var(--muted); }
 
+.polymarket-bet-btn {
+  display: inline-block;
+  margin-top: 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.25rem 0.6rem;
+  border-radius: 6px;
+  background: rgba(0, 208, 132, 0.12);
+  color: var(--green);
+  text-decoration: none;
+  border: 1px solid rgba(0, 208, 132, 0.3);
+  transition: background 0.15s;
+}
+.polymarket-bet-btn:hover { background: rgba(0, 208, 132, 0.22); }
+
 .versus-label {
   font-size: 1.8rem;
   font-weight: 900;

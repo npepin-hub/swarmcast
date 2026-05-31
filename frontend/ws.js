@@ -375,8 +375,18 @@ function renderWinnerOdds({ teams, h2h, favorites }) {
   document.getElementById("winner-odds-rows").innerHTML = h2hHtml + teamHtml + favHtml;
 }
 
-function renderMarket(snapshot, spread) {
+function renderMarket(snapshot, spread, eventSlug) {
   const isDerived = snapshot.market_id === "winner_odds_derived";
+
+  // Polymarket deep-link — show whenever market data is present
+  const link = document.getElementById("polymarket-link");
+  if (link) {
+    const url = eventSlug
+      ? `https://polymarket.com/sports/world-cup/${eventSlug}`
+      : "https://polymarket.com/sports/world-cup";
+    link.href = url;
+    link.classList.remove("hidden");
+  }
   // Update Polymarket column sublabel
   const lbl = document.getElementById("market-source-label");
   if (lbl) lbl.textContent = isDerived ? "Polymarket (H2H)" : "Polymarket";
@@ -482,13 +492,25 @@ function handleEvent(msg) {
         if (p != null) {
           const swarmPct = parseFloat(document.getElementById("consensus-p")?.textContent) || 0;
           const spread = Math.abs(swarmPct / 100 - p);
-          renderMarket({ market_probability: p, market_id: "winner_odds_derived" }, spread);
+          const m = window.selectedMatch;
+          const fallbackSlug = (m?.home_team_code && m?.away_team_code && m?.match_date)
+            ? `fifwc-${m.home_team_code}-${m.away_team_code}-${m.match_date}`
+            : "";
+          renderMarket({ market_probability: p, market_id: "winner_odds_derived" }, spread, fallbackSlug);
         }
       }
       break;
     case "market_check":
       if (msg.payload.snapshot) {
-        renderMarket(msg.payload.snapshot, msg.payload.spread);
+        // Prefer backend-resolved slug; fall back to constructing from match data
+        const slug = msg.payload.event_slug || (() => {
+          const m = window.selectedMatch;
+          if (m?.home_team_code && m?.away_team_code && m?.match_date) {
+            return `fifwc-${m.home_team_code}-${m.away_team_code}-${m.match_date}`;
+          }
+          return "";
+        })();
+        renderMarket(msg.payload.snapshot, msg.payload.spread, slug);
       }
       break;
     case "edge_result":

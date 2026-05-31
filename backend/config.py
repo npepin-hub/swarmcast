@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     wandb_critic_model: str = "OpenPipe/Qwen3-14B-Instruct"
     wandb_delphi_model: str = "OpenPipe/Qwen3-14B-Instruct"
     wandb_contrarian_model: str = Field(
-        default="coreweave/moonshotai/Kimi-K2.6",
+        default="moonshotai/Kimi-K2.6",
         validation_alias=AliasChoices(
             "wandb_contrarian_model",
             "WANDB_CONTRARIAN_MODEL",
