@@ -24,6 +24,10 @@ def prob_from_goals(team_a_goals: int, team_b_goals: int) -> float:
     return 0.5
 
 
+def is_parse_error(vote: AgentVote) -> bool:
+    return vote.key_signal == "parse_error"
+
+
 def vote_text_from_messages(messages: list) -> str:
     """Find vote JSON in ReAct message history (final reply or submit_vote tool)."""
     for msg in reversed(messages):
@@ -45,20 +49,7 @@ def vote_text_from_messages(messages: list) -> str:
     return ""
 
 
-def parse_vote(text: str, role: str, round: int) -> AgentVote:
-    data = extract_json_object(text)
-    if not data:
-        return AgentVote(
-            role=role,
-            team_a_goals=0,
-            team_b_goals=0,
-            probability=0.5,
-            confidence=0.5,
-            key_signal="parse_error",
-            reasoning=(text or "")[:200],
-            uncertainty_flag=True,
-            round=round,
-        )
+def vote_from_payload(data: dict, role: str, round: int) -> AgentVote:
     goals_a, goals_b = parse_goals(data)
     prob = data.get("probability")
     probability = (
@@ -75,3 +66,20 @@ def parse_vote(text: str, role: str, round: int) -> AgentVote:
         uncertainty_flag=bool(data.get("uncertainty_flag", False)),
         round=round,
     )
+
+
+def parse_vote(text: str, role: str, round: int) -> AgentVote:
+    data = extract_json_object(text)
+    if not data:
+        return AgentVote(
+            role=role,
+            team_a_goals=0,
+            team_b_goals=0,
+            probability=0.5,
+            confidence=0.5,
+            key_signal="parse_error",
+            reasoning=(text or "")[:200],
+            uncertainty_flag=True,
+            round=round,
+        )
+    return vote_from_payload(data, role, round)

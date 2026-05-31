@@ -21,6 +21,7 @@ const setText = (id, text) => { const el = document.getElementById(id); if (el) 
 
 let currentTeamA = "";
 let currentTeamB = "";
+let deliberationRounds = 5;
 
 // ── Role legend ───────────────────────────────────────────────────────────────
 
@@ -61,34 +62,40 @@ function addAgentCard(vote) {
   const existing  = document.getElementById(`card-${vote.role}`);
   const card      = existing || document.createElement("div");
   const color     = agentColor(vote.role);
-  const r1        = votesByRole[vote.role].r1;
-  const r2        = votesByRole[vote.role].r2;
+  const rounds    = votesByRole[vote.role];
+  const r1        = rounds.r1;
+  const roundKeys = Object.keys(rounds).filter(k => k.startsWith("r")).sort(
+    (a, b) => parseInt(a.slice(1), 10) - parseInt(b.slice(1), 10)
+  );
+  const latestKey = roundKeys[roundKeys.length - 1];
+  const latest    = rounds[latestKey];
 
   card.id    = `card-${vote.role}`;
   card.className = "agent-card";
   card.style.borderLeftColor = color;
 
-  const r1Row = r1 ? `
-    <div class="round-row">
-      <span class="round-tag">R1</span>
-      <span class="round-pct">${(r1.probability * 100).toFixed(1)}%</span>
+  const roundRows = roundKeys.map((key, idx) => {
+    const v = rounds[key];
+    if (!v) return "";
+    const n = parseInt(key.slice(1), 10);
+    const prev = idx > 0 ? rounds[roundKeys[idx - 1]] : null;
+    const delta = prev
+      ? `<span class="delta ${v.probability >= prev.probability ? "up" : "dn"}">
+        ${v.probability >= prev.probability ? "+" : ""}${((v.probability - prev.probability) * 100).toFixed(1)}pp
+      </span>`
+      : "";
+    const rowClass = n > 1 ? "round-row round2-row" : "round-row";
+    return `<div class="${rowClass}">
+      <span class="round-tag${n > 1 ? " r2" : ""}">R${n}</span>
+      <span class="round-pct">${(v.probability * 100).toFixed(1)}%</span>
       <span class="prob-label">P(${teamAName()} wins)</span>
-    </div>` : "";
+      ${delta}
+    </div>`;
+  }).join("");
 
-  const r2Row = r2 ? `
-    <div class="round-row round2-row">
-      <span class="round-tag r2">R2</span>
-      <span class="round-pct">${(r2.probability * 100).toFixed(1)}%</span>
-      <span class="prob-label">P(${teamAName()} wins)</span>
-      ${r1 ? `<span class="delta ${r2.probability >= r1.probability ? "up" : "dn"}">
-        ${r2.probability >= r1.probability ? "+" : ""}${((r2.probability - r1.probability) * 100).toFixed(1)}pp
-      </span>` : ""}
-    </div>` : "";
-
-  const latest = r2 || r1;
   card.innerHTML = `
     <div class="role" style="color:${color}">${vote.role.replace(/_/g, " ")}</div>
-    ${r1Row}${r2Row}
+    ${roundRows}
     <div class="signal"><strong>Key signal:</strong> ${latest.key_signal}</div>
     <div class="reasoning">${latest.reasoning}</div>
     ${latest.uncertainty_flag ? '<div class="flag">⚠ Low data confidence</div>' : ""}
@@ -155,60 +162,123 @@ function renderConsensus(consensus) {
   dissentEl.classList.remove("hidden");
 
   show("bar-chart");
-  renderAggregateTable();
+  renderAggregateTable(consensus);
   hide("agent-feed");
 }
 
-function renderAggregateTable() {
-  const wrap = document.getElementById("aggregate-table-wrap");
-  const tbody = document.getElementById("aggregate-rows");
-  if (!wrap || !tbody) return;
+function maxVoteRound() {
+  let max = 1;
+  Object.values(votesByRole).forEach(rounds => {
+    Object.keys(rounds).forEach(k => {
+      if (k.startsWith("r")) max = Math.max(max, parseInt(k.slice(1), 10));
+    });
+  });
+  return Math.max(max, deliberationRounds);
+}
 
-  const rows = Object.entries(votesByRole).map(([role, rounds]) => {
-    const r1 = rounds.r1;
-    const r2 = rounds.r2 || r1;
+function escHtml(s) {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function voteWinner(v) {
+  if (!v) return "draw";
+  if (v.team_a_goals > v.team_b_goals) return "a";
+  if (v.team_b_goals > v.team_a_goals) return "b";
+  return "draw";
+}
+
+function resolveWinnerLabel(v) {
+  const side = voteWinner(v);
+  if (side === "draw") return "Draw";
+  return side === "a" ? teamAName() : teamBName();
+}
+
+function roundChangeIndicator(prev, curr) {
+  if (!prev || !curr) return "";
+  const w1 = voteWinner(prev);
+  const w2 = voteWinner(curr);
+  if (w1 !== "draw" && w2 !== "draw" && w1 !== w2) {
+    return `<span class="flip-tag"><span class="flip-coin">🪙</span> flip</span>`;
+  }
+  if (w1 === w2 && Math.abs(curr.probability - prev.probability) > 0.10) {
+    const confDelta = curr.probability - prev.probability;
+    return confDelta > 0
+      ? `<span class="conf-tag conf-up">▲ confidence</span>`
+      : `<span class="conf-tag conf-dn">▼ confidence</span>`;
+  }
+  return "";
+}
+
+function fmtVoteCell(v) {
+  if (!v) return "—";
+  const winner = resolveWinnerLabel(v);
+  return `<div class="agg-vote-score">${v.team_a_goals}–${v.team_b_goals}</div>
+    <div class="agg-vote-pct">${(v.probability * 100).toFixed(1)}%</div>
+    <div class="agg-predicted-winner">${winner}</div>`;
+}
+
+function renderAggregateTable(consensus) {
+  const wrap = document.getElementById("aggregate-table-wrap");
+  const thead = document.getElementById("aggregate-thead");
+  const tbody = document.getElementById("aggregate-rows");
+  if (!wrap || !thead || !tbody) return;
+
+  const nRounds = consensus?.deliberation_rounds || maxVoteRound();
+  const roundNums = Array.from({ length: nRounds }, (_, i) => i + 1);
+
+  const colSpan = nRounds + 2; /* agent + rounds + delta */
+
+  thead.innerHTML = `<tr>
+    <th class="agg-agent-col">Agent</th>
+    ${roundNums.map(n => `<th class="agg-round-col">R${n}</th>`).join("")}
+    <th class="agg-delta-col">Δ</th>
+  </tr>`;
+
+  const rows = Object.entries(votesByRole).flatMap(([role, rounds]) => {
     const color = agentColor(role);
-    const winner = v => v.team_a_goals > v.team_b_goals ? "a" : v.team_b_goals > v.team_a_goals ? "b" : "draw";
-    const resolveWinner = (v) => {
-      const side = winner(v);
-      if (side === "draw") return "Votes: draw";
-      const name = side === "a"
-        ? (window.selectedMatch?.team_a || "Team A")
-        : (window.selectedMatch?.team_b || "Team B");
-      return `Votes: ${name} wins`;
-    };
-    const hasR2 = r1 && rounds.r2;
-    const flipped = hasR2 && winner(r1) !== "draw" && winner(r2) !== "draw" && winner(r1) !== winner(r2);
-    const confDelta = hasR2 ? r2.probability - r1.probability : 0;
-    const confShifted = hasR2 && winner(r1) === winner(r2) && Math.abs(confDelta) > 0.10;
-    const indicator = flipped
-      ? `<span class="flip-tag"><span class="flip-coin">🪙</span> flip</span>`
-      : confShifted
-        ? confDelta > 0
-          ? `<span class="conf-tag conf-up">▲ confidence</span>`
-          : `<span class="conf-tag conf-dn">▼ confidence</span>`
-        : "";
-    const fmt = (v) => v
-      ? `${v.team_a_goals}–${v.team_b_goals} · ${(v.probability * 100).toFixed(1)}%`
-      : "—";
     const focus = focusByRole[role] || "";
-    return `<tr>
-      <td style="color:${color}">
-        <div style="font-weight:600">${role.replace(/_/g, " ")}</div>
-        ${focus ? `<div class="agg-focus">${focus}</div>` : ""}
+    const r1 = rounds.r1;
+    const rPrev = rounds[`r${nRounds - 1}`] || rounds.r1;
+    const rFinal = rounds[`r${nRounds}`] || rounds[`r${maxVoteRound()}`] || r1;
+    const delta = rFinal && r1
+      ? ((rFinal.probability - r1.probability) * 100).toFixed(1)
+      : "—";
+    const deltaStr = delta !== "—"
+      ? (parseFloat(delta) >= 0 ? `+${delta}pp` : `${delta}pp`)
+      : "—";
+    const signal = rFinal?.key_signal || r1?.key_signal || "";
+    const reasoning = rFinal?.reasoning || r1?.reasoning || "";
+    const indicator = roundChangeIndicator(rPrev, rFinal);
+
+    const roundCells = roundNums.map(n => {
+      const v = rounds[`r${n}`];
+      return `<td class="agg-round-cell">${fmtVoteCell(v)}</td>`;
+    }).join("");
+
+    const voteRow = `<tr class="agg-vote-row">
+      <td class="agg-agent-cell" style="color:${color}">
+        <div class="agg-agent-name">${role.replace(/_/g, " ")}</div>
+        ${focus ? `<div class="agg-focus">${escHtml(focus)}</div>` : ""}
       </td>
-      <td>
-        <div>${fmt(r1)}</div>
-        ${r1 ? `<div class="agg-predicted-winner">${resolveWinner(r1)}</div>` : ""}
-      </td>
-      <td>
-        <div>${fmt(r2)}</div>
-        <div class="agg-predicted-winner">${resolveWinner(r2)}</div>
+      ${roundCells}
+      <td class="agg-delta">
+        <div class="delta ${parseFloat(delta) >= 0 ? "up" : "dn"}">${deltaStr}</div>
         ${indicator}
       </td>
-      <td class="agg-signal">${r2?.key_signal || r1?.key_signal || ""}</td>
-      <td class="agg-reasoning">${r2?.reasoning || r1?.reasoning || ""}</td>
     </tr>`;
+
+    const notesRow = (signal || reasoning) ? `<tr class="agg-notes-row">
+      <td colspan="${colSpan}" class="agg-notes-cell">
+        ${signal ? `<div class="agg-signal-line"><span class="agg-notes-label">Signal</span>${escHtml(signal)}</div>` : ""}
+        ${reasoning ? `<div class="agg-reasoning-line"><span class="agg-notes-label">Reasoning</span>${escHtml(reasoning)}</div>` : ""}
+      </td>
+    </tr>` : "";
+
+    return [voteRow, notesRow];
   });
 
   tbody.innerHTML = rows.join("");
@@ -381,6 +451,17 @@ function handleEvent(msg) {
     case "consensus":
       window.setSwarmPhase?.("consensus");
       window.lockConsensusColor?.(msg.payload.probability);
+      if (msg.payload.deliberation_rounds) {
+        deliberationRounds = msg.payload.deliberation_rounds;
+      }
+      if (msg.payload.round_votes?.length) {
+        msg.payload.round_votes.forEach((round, idx) => {
+          round.forEach(v => {
+            v.round = idx + 1;
+            addAgentCard(v);
+          });
+        });
+      }
       renderConsensus(msg.payload);
       break;
     case "verdict":
@@ -388,25 +469,26 @@ function handleEvent(msg) {
       break;
     case "match_markets":
       renderMatchMarkets(msg.payload);
+      if (msg.payload.team_a_market_id) {
+        document.getElementById("market-id").value = msg.payload.team_a_market_id;
+      }
       break;
     case "winner_odds":
       renderWinnerOdds(msg.payload);
-      break;
-    case "market_check":
-      if (msg.payload.snapshot) renderMarket(msg.payload.snapshot, msg.payload.spread);
-      break;
-    case "winner_odds":
-      // Fallback: populate Polymarket column from tournament H2H if no match market
       if (!document.getElementById("market-p-inline")?.textContent.match(/\d/)) {
         const h2h = msg.payload.h2h;
         const team = teamAName();
         const p = h2h?.[team];
         if (p != null) {
-          const pct = (p * 100).toFixed(1);
           const swarmPct = parseFloat(document.getElementById("consensus-p")?.textContent) || 0;
           const spread = Math.abs(swarmPct / 100 - p);
           renderMarket({ market_probability: p, market_id: "winner_odds_derived" }, spread);
         }
+      }
+      break;
+    case "market_check":
+      if (msg.payload.snapshot) {
+        renderMarket(msg.payload.snapshot, msg.payload.spread);
       }
       break;
     case "edge_result":
