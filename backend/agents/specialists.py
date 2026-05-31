@@ -1,58 +1,88 @@
-"""Specialist agent runner — parallel execution via asyncio.to_thread."""
+"""Specialist agents — parallel votes via W&B Inference."""
 from __future__ import annotations
+
 import asyncio
-import anthropic
+
 import weave
+
 from ..config import settings
 from ..schemas import AgentVote, SpecialistDefinition
+from .inference import VOTE_JSON, extract_json_object, inference_chat
 
-client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
 
-VOTE_TOOL = {
-    "name": "submit_vote",
-    "description": "Submit your probability estimate and reasoning for the match outcome.",
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "probability":      {"type": "number", "description": "P(team A wins), 0–1"},
-            "confidence":       {"type": "number", "description": "Your confidence in this estimate, 0–1"},
-            "key_signal":       {"type": "string", "description": "Single most decisive factor"},
-            "reasoning":        {"type": "string", "description": "Full reasoning chain (≤200 words)"},
-            "uncertainty_flag": {"type": "boolean", "description": "True if data quality is low or gap is large"},
-        },
-        "required": ["probability", "confidence", "key_signal", "reasoning", "uncertainty_flag"],
-    },
-}
+def _parse_vote(text: str, role: str, round: int) -> AgentVote:
+    data = extract_json_object(text)
+    if not data:
+        return AgentVote(
+            role=role,
+            probability=0.5,
+            confidence=0.5,
+            key_signal="parse_error",
+            reasoning=text[:200],
+            uncertainty_flag=True,
+            round=round,
+        )
+    return AgentVote(
+        role=role,
+        probability=float(data["probability"]),
+        confidence=float(data["confidence"]),
+        key_signal=str(data.get("key_signal", "")),
+        reasoning=str(data.get("reasoning", "")),
+        uncertainty_flag=bool(data.get("uncertainty_flag", False)),
+        round=round,
+    )
+
+
+def _vote_user_message(
+    match_query: str, team_a: str, team_b: str, context: str, round: int
+) -> str:
+    parts = [
+        f"Match: {match_query}",
+        f"Team A = {team_a}, Team B = {team_b}.",
+        f"Round {round} vote — independent estimate.",
+        VOTE_JSON,
+    ]
+    if context.strip():
+        parts.insert(2, f"Assigned data:\n{context}")
+    return "\n\n".join(parts)
 
 
 @weave.op()
-async def run_specialist(
+def run_specialist(
     specialist: SpecialistDefinition,
+    match_query: str,
+    team_a: str,
+    team_b: str,
     context: str,
     round: int = 1,
+    model: str | None = None,
 ) -> AgentVote:
-    """Run one specialist agent and return its structured vote."""
-    response = await asyncio.to_thread(
-        client.messages.create,
-        model=settings.specialist_model,
-        max_tokens=1024,
-        tools=[VOTE_TOOL],
-        tool_choice={"type": "tool", "name": "submit_vote"},
-        system=specialist.system_prompt,
-        messages=[{"role": "user", "content": context}],
+    model = model or settings.wandb_specialist_model
+    raw = inference_chat(
+        specialist.system_prompt,
+        _vote_user_message(match_query, team_a, team_b, context, round),
+        model,
     )
-    vote_input: dict = response.content[0].input
-    return AgentVote(role=specialist.role, round=round, **vote_input)
+    return _parse_vote(raw, specialist.role, round)
 
 
+@weave.op()
 async def run_swarm(
     specialists: list[SpecialistDefinition],
+    match_query: str,
+    team_a: str,
+    team_b: str,
     contexts: dict[str, str],
     round: int = 1,
+    model: str | None = None,
 ) -> list[AgentVote]:
-    """Fire all specialists in parallel. contexts keyed by data_slice_id."""
-    tasks = [
-        run_specialist(s, contexts.get(s.data_slice_id, ""), round=round)
-        for s in specialists
-    ]
-    return list(await asyncio.gather(*tasks))
+    default_ctx = "\n\n".join(contexts.values()) if contexts else ""
+    model = model or settings.wandb_specialist_model
+
+    async def _one(spec: SpecialistDefinition) -> AgentVote:
+        ctx = contexts.get(spec.data_slice_id, default_ctx)
+        return await asyncio.to_thread(
+            run_specialist, spec, match_query, team_a, team_b, ctx, round, model
+        )
+
+    return list(await asyncio.gather(*[_one(s) for s in specialists]))

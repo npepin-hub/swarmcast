@@ -1,38 +1,53 @@
+from __future__ import annotations
+
+from pydantic import AliasChoices, Field, computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    # Anthropic
-    anthropic_api_key: str
-
-    # W&B Weave
     wandb_api_key: str
+    wandb_entity: str = "ceatp-ceatp"
     wandb_project: str = "swarmcast"
 
-    # WC history API
-    wc_api_key: str = ""
+    wandb_inference_base_url: str = "https://api.inference.wandb.ai/v1"
+    wandb_orchestrator_model: str = Field(
+        default="OpenPipe/Qwen3-14B-Instruct",
+        validation_alias=AliasChoices(
+            "wandb_orchestrator_model",
+            "WANDB_ORCHESTRATOR_MODEL",
+            "WANDB_SPAWN_MODEL",
+        ),
+    )
+    wandb_specialist_model: str = Field(
+        default="OpenPipe/Qwen3-14B-Instruct",
+        validation_alias=AliasChoices(
+            "wandb_specialist_model",
+            "WANDB_SPECIALIST_MODEL",
+            "WANDB_VOTER_MODEL",
+        ),
+    )
+    wandb_critic_model: str = "OpenPipe/Qwen3-14B-Instruct"
+    wandb_delphi_model: str = "OpenPipe/Qwen3-14B-Instruct"
+    use_langgraph_delphi: bool = True
 
-    # Football data
+    wc_api_key: str = ""
     football_data_api_key: str = ""
     api_football_key: str = ""
 
-    # Polymarket — validation layer only, never touched during deliberation
     polymarket_api_key: str = ""
     polymarket_private_key: str = ""
     polymarket_chain_id: int = 137
-
-    # Edge threshold in probability units (0.08 = 8 pp)
     edge_threshold: float = 0.08
 
-    # Models
-    orchestrator_model: str = "claude-sonnet-4-20250514"
-    specialist_model: str = "claude-sonnet-4-20250514"
-    critic_model: str = "claude-haiku-4-5-20251001"
-    # Server
     host: str = "0.0.0.0"
     port: int = 8000
+
+    @computed_field
+    @property
+    def weave_project_path(self) -> str:
+        return f"{self.wandb_entity}/{self.wandb_project}"
 
 
 settings = Settings()

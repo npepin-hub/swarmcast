@@ -1,23 +1,22 @@
-"""FastAPI app — /forecast endpoint + /ws WebSocket for real-time agent state."""
+"""FastAPI app — /forecast + WebSocket."""
 from __future__ import annotations
+
 import asyncio
-import json
 from contextlib import asynccontextmanager
+
+import weave
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from .agents.pipeline import run_deliberation
 from .config import settings
-from .schemas import ForecastResult, WSEventType, WSMessage
-from .observability import weave_tracer
-from .agents.orchestrator import spawn_specialists, act_on_critique
-from .agents.specialists import run_swarm
-from .agents.critic import run_critic
-from .agents.delphi import aggregate, run_delphi_round
 from .data.wc26 import build_context_bundle
-from .market.gamma import find_wc_market
 from .market.edge import detect_and_act
+from .market.gamma import find_wc_market
+from .observability import weave_tracer
+from .schemas import ForecastResult, WSEventType, WSMessage
 
 
 @asynccontextmanager
@@ -29,8 +28,6 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="SwarmCast", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory="frontend"), name="static")
 
-
-# ── WebSocket connection manager ──────────────────────────────────────────────
 
 class ConnectionManager:
     def __init__(self):
@@ -44,10 +41,9 @@ class ConnectionManager:
         self._connections.remove(ws)
 
     async def broadcast(self, msg: WSMessage):
-        data = msg.model_dump_json()
         for ws in list(self._connections):
             try:
-                await ws.send_text(data)
+                await ws.send_text(msg.model_dump_json())
             except Exception:
                 self.disconnect(ws)
 
@@ -55,58 +51,65 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
-# ── Request / response models ─────────────────────────────────────────────────
-
 class ForecastRequest(BaseModel):
-    match_query: str                # e.g. "Will Brazil beat France?"
-    team_a: str                     # FIFA code, e.g. "BRA"
-    team_b: str                     # FIFA code, e.g. "FRA"
-    team_a_id: int = 0              # unused (kept for backward compat)
-    team_b_id: int = 0              # unused (kept for backward compat)
-    competition_id: str = ""        # WC2026 group letter, e.g. "A" (optional)
-    polymarket_market_id: str = ""  # optional override; auto-discovered if empty
+    match_query: str
+    team_a: str
+    team_b: str
+    team_a_id: int = 0
+    team_b_id: int = 0
+    competition_id: str = ""
+    polymarket_market_id: str = ""
 
 
-# ── Pipeline ──────────────────────────────────────────────────────────────────
+@weave.op()
+def run_market_validation(
+    consensus_probability: float,
+    team_a: str,
+    team_b: str,
+    polymarket_market_id: str,
+):
+    try:
+        market_id = polymarket_market_id or find_wc_market(team_a, team_b) or ""
+        if not market_id:
+            return None, None, False, None
+        return detect_and_act(consensus_probability, market_id)
+    except Exception as exc:
+        print(f"[market] validation skipped: {exc}")
+        return None, None, False, None
 
-async def run_pipeline(req: ForecastRequest) -> ForecastResult:
+
+@weave.op()
+async def run_forecast_pipeline(req: ForecastRequest) -> ForecastResult:
     async def emit(event: WSEventType, payload):
         await manager.broadcast(WSMessage(event=event, payload=payload))
 
-    # Layer 0 — WC26 MCP data (replaces static RAG + live API)
-    contexts = build_context_bundle(req.team_a, req.team_b, req.competition_id)
+    contexts = await build_context_bundle(req.team_a, req.team_b, req.competition_id)
+    result = await run_deliberation(
+        req.match_query,
+        req.team_a,
+        req.team_b,
+        contexts,
+        emit=emit,
+    )
 
-    # Layer 1 — meta-orchestrator spawns specialists
-    specialists = spawn_specialists(req.match_query)
-    await emit(WSEventType.spawning, [s.model_dump() for s in specialists])
+    forecast = ForecastResult(
+        match_query=req.match_query,
+        consensus=result.consensus,
+        critique=result.critique,
+        market=None,
+        spread=None,
+        edge_detected=False,
+        bet_receipt=None,
+    )
 
-    # Layer 2 — round 1 swarm
-    round1_votes = await run_swarm(specialists, contexts, round=1)
-    for v in round1_votes:
-        await emit(WSEventType.agent_vote, v.model_dump())
-
-    # Layer 3 — holistic critic
-    critique = run_critic(round1_votes, req.match_query)
-    await emit(WSEventType.critic_fired, critique.model_dump())
-
-    # Orchestrator acts on critique (spawn / rewrite / broadcast)
-    specialists = act_on_critique(critique, specialists, req.match_query)
-
-    # Layer 4 — Delphi round 2
-    round2_votes = await run_delphi_round(specialists, round1_votes, contexts)
-    for v in round2_votes:
-        await emit(WSEventType.delphi_round, v.model_dump())
-
-    consensus = aggregate(round2_votes)
-    await emit(WSEventType.consensus, consensus.model_dump())
-
-    # Layer 6 — Polymarket (first and only contact)
-    market_id = req.polymarket_market_id or find_wc_market(req.team_a, req.team_b) or ""
-    snapshot, spread, edge_detected, bet_receipt = (None, None, False, None)
-    if market_id:
-        snapshot, spread, edge_detected, bet_receipt = detect_and_act(
-            consensus.probability, market_id
-        )
+    snapshot, spread, edge_detected, bet_receipt = await asyncio.to_thread(
+        run_market_validation,
+        forecast.consensus.probability,
+        req.team_a,
+        req.team_b,
+        req.polymarket_market_id,
+    )
+    if snapshot is not None or edge_detected:
         await emit(WSEventType.market_check, {
             "snapshot": snapshot.model_dump() if snapshot else None,
             "spread": spread,
@@ -116,18 +119,16 @@ async def run_pipeline(req: ForecastRequest) -> ForecastResult:
             "bet_receipt": bet_receipt.model_dump() if bet_receipt else None,
         })
 
-    return ForecastResult(
-        match_query=req.match_query,
-        consensus=consensus,
-        critique=critique,
-        market=snapshot,
-        spread=spread,
-        edge_detected=edge_detected,
-        bet_receipt=bet_receipt,
-    )
+    forecast.market = snapshot
+    forecast.spread = spread
+    forecast.edge_detected = edge_detected
+    forecast.bet_receipt = bet_receipt
+    return forecast
 
 
-# ── Routes ────────────────────────────────────────────────────────────────────
+async def run_pipeline(req: ForecastRequest) -> ForecastResult:
+    return await run_forecast_pipeline(req)
+
 
 @app.get("/")
 async def index():
@@ -136,7 +137,7 @@ async def index():
 
 @app.get("/health")
 async def health():
-    return {"status": "ok"}
+    return {"status": "ok", "weave_project": settings.weave_project_path}
 
 
 @app.post("/forecast", response_model=ForecastResult)
@@ -149,6 +150,6 @@ async def websocket_endpoint(ws: WebSocket):
     await manager.connect(ws)
     try:
         while True:
-            await ws.receive_text()   # keep connection alive; pipeline pushes to client
+            await ws.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(ws)
