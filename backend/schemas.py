@@ -9,11 +9,14 @@ from pydantic import BaseModel, Field
 class SpecialistDefinition(BaseModel):
     role: str
     system_prompt: str
-    data_slice_id: str  # key into the RAG / live-data context bundle
+    data_slice_id: str
+    focus: str = ""   # short descriptor shown in the fish speech bubble
 
 
 class AgentVote(BaseModel):
     role: str
+    team_a_goals: int = Field(ge=0, le=20, description="Predicted goals for team A")
+    team_b_goals: int = Field(ge=0, le=20, description="Predicted goals for team B")
     probability: float = Field(ge=0.0, le=1.0)
     confidence: float = Field(ge=0.0, le=1.0)
     key_signal: str
@@ -45,6 +48,8 @@ class CritiqueOutput(BaseModel):
 # ── Delphi / consensus layer ──────────────────────────────────────────────────
 
 class ConsensusResult(BaseModel):
+    team_a_goals: float
+    team_b_goals: float
     probability: float = Field(ge=0.0, le=1.0)
     ci_low: float
     ci_high: float
@@ -90,6 +95,9 @@ class WSEventType(str, Enum):
     critic_fired = "critic_fired"   # holistic critic output ready
     delphi_round = "delphi_round"   # round 2 votes incoming
     consensus = "consensus"         # final consensus locked
+    verdict = "verdict"             # narrative synthesis of round-2 votes
+    match_markets = "match_markets" # polymarket 3-way match odds (win/draw/lose)
+    winner_odds = "winner_odds"     # polymarket tournament winner odds for both teams
     market_check = "market_check"   # polymarket snapshot fetched
     edge_result = "edge_result"     # spread computed, bet decision made
     error = "error"

@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SwarmCast · Historical Evaluation</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  <style>
+    .eval-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
+    .accuracy-badge { font-size: 2rem; font-weight: 800; color: var(--green); }
+    .accuracy-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+    .eval-controls { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
+
+    #eval-table-wrap { overflow-x: auto; margin-top: 1.5rem; }
+    table.eval-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    table.eval-table th { text-align: left; padding: 0.5rem 0.75rem; color: var(--muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.07em; border-bottom: 1px solid var(--border); white-space: nowrap; }
+    table.eval-table td { padding: 0.6rem 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.04); vertical-align: middle; }
+    table.eval-table tr:hover td { background: rgba(255,255,255,0.02); }
+
+    .stage-badge { font-size: 0.68rem; padding: 0.15rem 0.5rem; border-radius: 10px; background: rgba(91,141,238,0.15); color: var(--accent); white-space: nowrap; }
+    .result-correct   { color: var(--green); font-weight: 700; font-size: 1.1rem; }
+    .result-incorrect { color: var(--red);   font-weight: 700; font-size: 1.1rem; }
+    .result-pending   { color: var(--muted); font-size: 1rem; }
+    .conf-bar { width: 80px; height: 6px; background: rgba(255,255,255,0.07); border-radius: 3px; overflow: hidden; display: inline-block; vertical-align: middle; margin-right: 0.4rem; }
+    .conf-fill { height: 100%; border-radius: 3px; background: var(--accent); transition: width 0.4s; }
+    .running-pulse { animation: pulse 1s infinite; color: var(--muted); }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+    .score-chip { font-size: 0.75rem; color: var(--muted); }
+
+    #summary-bar { display: flex; gap: 2rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+    .stat-box { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1rem 1.5rem; text-align: center; }
+    .stat-val { font-size: 2rem; font-weight: 800; }
+    .stat-lbl { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); margin-top: 0.2rem; }
+    .back-link { font-size: 0.85rem; color: var(--muted); text-decoration: none; }
+    .back-link:hover { color: var(--text); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>SwarmCast <span style="color:var(--muted);font-weight:400;font-size:1.4rem">· Backtest</span></h1>
+    <p class="tagline">SwarmCast agents predict 2022 WC matches · compare vs actual results</p>
+  </header>
+
+  <main>
+    <section style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.5rem">
+
+      <div class="eval-header">
+        <div>
+          <h2 class="section-label" style="margin-bottom:0.3rem">2022 FIFA World Cup · Agent Evaluation</h2>
+          <p style="font-size:0.82rem;color:var(--muted)">~12 sampled matches across group stage, R16, QF, SF and final</p>
+        </div>
+        <div class="eval-controls">
+          <a href="/" class="back-link">← Main</a>
+          <button id="run-btn" onclick="runEval()">Run Evaluation</button>
+        </div>
+      </div>
+
+      <div id="summary-bar" style="margin-top:1.5rem;display:none">
+        <div class="stat-box">
+          <div class="stat-val" id="stat-accuracy" style="color:var(--green)">—</div>
+          <div class="stat-lbl">Accuracy</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-val" id="stat-correct">—</div>
+          <div class="stat-lbl">Correct</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-val" id="stat-total">—</div>
+          <div class="stat-lbl">Evaluated</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-val" id="stat-avg-conf">—</div>
+          <div class="stat-lbl">Avg confidence</div>
+        </div>
+      </div>
+
+      <div id="eval-table-wrap">
+        <table class="eval-table">
+          <thead>
+            <tr>
+              <th>Stage</th>
+              <th>Match</th>
+              <th>Score</th>
+              <th>Actual winner</th>
+              <th>Agent prediction</th>
+              <th>Confidence</th>
+              <th>Result</th>
+            </tr>
+          </thead>
+          <tbody id="eval-rows"></tbody>
+        </table>
+      </div>
+
+    </section>
+  </main>
+
+  <script src="/static/history.js"></script>
+</body>
+</html>

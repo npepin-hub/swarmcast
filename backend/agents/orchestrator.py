@@ -12,9 +12,10 @@ from .inference import extract_json_array, extract_json_object, inference_chat
 FALLBACK_SPECIALISTS: list[dict] = [
     {
         "role": "tactical_analyst",
+        "focus": "xG · formations · pressing",
         "data_slice_id": "wc26",
         "system_prompt": (
-            "You are a tactical analyst (xG, formations, pressing). "
+            "You are a tactical analyst specialising in xG, formations, and pressing systems. "
             "Form your own independent view based solely on your assigned data. "
             "Do not speculate about what other analysts might conclude. "
             "No Polymarket or betting odds."
@@ -22,42 +23,83 @@ FALLBACK_SPECIALISTS: list[dict] = [
     },
     {
         "role": "historical_stats",
+        "focus": "WC history · H2H · base rates",
         "data_slice_id": "wc26",
         "system_prompt": (
-            "You are a historical World Cup stats analyst. "
-            "Form your own independent view based solely on your assigned data."
+            "You are a historical World Cup stats analyst. Analyse head-to-head records, "
+            "tournament base rates, and confederation matchup history. "
+            "Form your own independent view based solely on your assigned data. "
+            "No Polymarket or betting odds."
         ),
     },
     {
         "role": "current_form",
+        "focus": "last 5 results · momentum · goals",
         "data_slice_id": "wc26",
         "system_prompt": (
-            "You are a form and momentum analyst. "
-            "Form your own independent view based solely on your assigned data."
+            "You are a form and momentum analyst. Assess recent results, goals scored and "
+            "conceded, and trajectory over the last 5 matches. "
+            "Form your own independent view based solely on your assigned data. "
+            "No Polymarket or betting odds."
         ),
     },
     {
         "role": "squad_fitness",
+        "focus": "injuries · suspensions · depth",
         "data_slice_id": "wc26",
         "system_prompt": (
-            "You are a squad fitness and injuries analyst. "
-            "Form your own independent view based solely on your assigned data."
+            "You are a squad fitness analyst. Assess injury lists, suspensions, and squad "
+            "depth compared to full-strength lineups. "
+            "Form your own independent view based solely on your assigned data. "
+            "No Polymarket or betting odds."
         ),
     },
     {
         "role": "tournament_context",
+        "focus": "standings · incentives · venue",
         "data_slice_id": "wc26",
         "system_prompt": (
-            "You are a tournament context analyst (standings, incentives). "
-            "Form your own independent view based solely on your assigned data."
+            "You are a tournament context analyst. Assess group standings, qualification "
+            "scenarios, rest days, venue, and strategic incentives that may affect lineup "
+            "selection or match intensity. "
+            "Form your own independent view based solely on your assigned data. "
+            "No Polymarket or betting odds."
+        ),
+    },
+    {
+        "role": "set_piece_specialist",
+        "focus": "corners · free kicks · dead ball",
+        "data_slice_id": "wc26",
+        "system_prompt": (
+            "You are a set piece specialist. Assess each team's attacking and defensive "
+            "set piece record, key delivery and target players, and how dead ball situations "
+            "may decide the match. "
+            "Form your own independent view based solely on your assigned data. "
+            "No Polymarket or betting odds."
+        ),
+    },
+    {
+        "role": "psychological_analyst",
+        "focus": "big game record · pressure · experience",
+        "data_slice_id": "wc26",
+        "system_prompt": (
+            "You are a psychological and experience analyst. Assess each squad's record in "
+            "high-pressure knockout and tournament situations, average caps, key players' "
+            "big-game history, and mental resilience indicators. "
+            "Form your own independent view based solely on your assigned data. "
+            "No Polymarket or betting odds."
         ),
     },
     {
         "role": "contrarian",
+        "focus": "underdog case · upset risk",
         "data_slice_id": "wc26",
         "system_prompt": (
-            "You are a contrarian analyst biased against the favourite. "
-            "Form your own independent view based solely on your assigned data."
+            "You are a contrarian analyst structurally biased against the favourite. "
+            "Surface the strongest case for the underdog. Identify the single most likely "
+            "mechanism for an upset. "
+            "Form your own independent view based solely on your assigned data. "
+            "No Polymarket or betting odds."
         ),
     },
 ]
@@ -65,9 +107,14 @@ FALLBACK_SPECIALISTS: list[dict] = [
 _SPAWN_SYSTEM = """\
 You are a meta-orchestrator for a multi-agent sports forecasting system.
 Given a match question, return a JSON array of specialist definitions.
-Each element: {"role": str, "system_prompt": str, "data_slice_id": "wc26"}
+Each element must have exactly these fields:
+  "role": short snake_case label
+  "focus": one-line descriptor of what this agent analyses (shown to users, ≤6 words)
+  "system_prompt": full instructions for the agent
+  "data_slice_id": always "wc26"
 Rules:
-- Always include a contrarian agent.
+- Always include a contrarian agent biased against the favourite.
+- Aim for 7-9 specialists covering distinct analytical angles.
 - Each prompt must require independent views from assigned data only; no Polymarket/odds.
 - Return ONLY the JSON array.
 """
@@ -124,7 +171,7 @@ def act_on_critique(
 def _spawn_single(rationale: str, match_query: str) -> SpecialistDefinition | None:
     prompt = (
         f"Match: {match_query}\nGap: {rationale}\n"
-        'Return one JSON object: {"role", "system_prompt", "data_slice_id": "wc26"}'
+        'Return one JSON object: {"role", "focus", "system_prompt", "data_slice_id": "wc26"}'
     )
     raw = inference_chat(_SPAWN_SYSTEM, prompt, settings.wandb_orchestrator_model)
     data = extract_json_object(raw)

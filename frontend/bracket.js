@@ -11,7 +11,7 @@ const KNOCKOUT_ROUNDS = [
   { label: "Final",          slots: 1 },
 ];
 
-let selectedMatch = null;   // { team_a, team_b, group, match_id, label }
+let selectedMatch = null;   // populated in selectMatch()
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -29,23 +29,32 @@ function selectMatch(row, match, groupId) {
   const homeRaw = match.home_team_name || match.home_team_id || "TBD";
   const awayRaw = match.away_team_name || match.away_team_id || "TBD";
 
-  // Strip leading emoji+space if present (home_team_name already has it)
-  const stripFlag = s => s.replace(/^[\p{Emoji_Presentation}\p{Extended_Pictographic}]\s*/u, "").trim();
+  // Strip leading flag emoji+space (flags = Regional Indicator pairs U+1F1E0-1F1FF)
+  const stripFlag = s => s.replace(/^[\u{1F1E0}-\u{1F1FF}\p{Emoji_Presentation}\p{Extended_Pictographic}]+\s*/u, "").trim();
   const teamA = stripFlag(homeRaw);
   const teamB = stripFlag(awayRaw);
+
+  const round = match.round || "Group Stage";
+  const competition = groupId
+    ? `${round} · Group ${groupId}`
+    : round;
 
   selectedMatch = {
     team_a: teamA,
     team_b: teamB,
+    home_team_code: (match.home_team_id || "").toLowerCase(),
+    away_team_code: (match.away_team_id || "").toLowerCase(),
+    match_date: match.date || "",
+    competition_id: groupId || "",
+    competition,
+    round,
     group: groupId,
-    match_id: match.id,
+    match_id: match.id || "",
     label: `${homeRaw} vs ${awayRaw}`,
   };
   window.selectedMatch = selectedMatch;
 
-  // Update run bar
-  document.getElementById("selected-match-label").textContent = selectedMatch.label;
-  document.getElementById("run-bar").classList.remove("hidden");
+  window.onMatchSelected?.();
 }
 
 // ── Group tiles ───────────────────────────────────────────────────────────────
@@ -55,8 +64,8 @@ function renderGroupTile(group) {
   tile.className = "group-tile";
 
   const header = document.createElement("div");
-  header.className = "group-header";
-  header.textContent = `Group ${group.id}`;
+  header.className = "group-header collapsible";
+  header.innerHTML = `Group ${group.id}<span class="group-chevron">▸</span>`;
   tile.appendChild(header);
 
   const teams = document.createElement("div");
@@ -70,7 +79,7 @@ function renderGroupTile(group) {
   tile.appendChild(teams);
 
   const matchList = document.createElement("div");
-  matchList.className = "match-list";
+  matchList.className = "match-list hidden";
   (group.matches || []).forEach(m => {
     const row = document.createElement("div");
     row.className = "match-row";
@@ -84,6 +93,11 @@ function renderGroupTile(group) {
     matchList.appendChild(row);
   });
   tile.appendChild(matchList);
+
+  header.addEventListener("click", () => {
+    const open = matchList.classList.toggle("hidden");
+    header.querySelector(".group-chevron").textContent = open ? "▸" : "▾";
+  });
 
   return tile;
 }
@@ -136,4 +150,14 @@ async function initBracket() {
   renderKnockout();
 }
 
-document.addEventListener("DOMContentLoaded", initBracket);
+document.addEventListener("DOMContentLoaded", () => {
+  initBracket();
+
+  document.getElementById("knockout-toggle").addEventListener("click", () => {
+    const bracket  = document.getElementById("knockout-bracket");
+    const chevron  = document.getElementById("knockout-chevron");
+    const expanded = !bracket.classList.contains("hidden");
+    bracket.classList.toggle("hidden", expanded);
+    chevron.textContent = expanded ? "▸" : "▾";
+  });
+});
