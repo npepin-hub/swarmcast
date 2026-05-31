@@ -134,6 +134,9 @@ function renderConsensus(consensus) {
   }
 
   renderAggregateTable();
+
+  // Cards are redundant once the aggregate table is up — remove them
+  document.getElementById("agent-cards").innerHTML = "";
 }
 
 function renderAggregateTable() {
