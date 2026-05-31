@@ -15,8 +15,7 @@ from .agents.orchestrator import spawn_specialists, act_on_critique
 from .agents.specialists import run_swarm
 from .agents.critic import run_critic
 from .agents.delphi import aggregate, run_delphi_round
-from .data.live import build_context_bundle
-from .data.rag import query as rag_query
+from .data.wc26 import build_context_bundle
 from .market.gamma import find_wc_market
 from .market.edge import detect_and_act
 
@@ -59,13 +58,13 @@ manager = ConnectionManager()
 # ── Request / response models ─────────────────────────────────────────────────
 
 class ForecastRequest(BaseModel):
-    match_query: str               # e.g. "Will Brazil beat France?"
-    team_a: str
-    team_b: str
-    team_a_id: int
-    team_b_id: int
-    competition_id: str            # e.g. "WC2026"
-    polymarket_market_id: str = "" # optional override; auto-discovered if empty
+    match_query: str                # e.g. "Will Brazil beat France?"
+    team_a: str                     # FIFA code, e.g. "BRA"
+    team_b: str                     # FIFA code, e.g. "FRA"
+    team_a_id: int = 0              # unused (kept for backward compat)
+    team_b_id: int = 0              # unused (kept for backward compat)
+    competition_id: str = ""        # WC2026 group letter, e.g. "A" (optional)
+    polymarket_market_id: str = ""  # optional override; auto-discovered if empty
 
 
 # ── Pipeline ──────────────────────────────────────────────────────────────────
@@ -74,17 +73,8 @@ async def run_pipeline(req: ForecastRequest) -> ForecastResult:
     async def emit(event: WSEventType, payload):
         await manager.broadcast(WSMessage(event=event, payload=payload))
 
-    # Layer 0 — RAG seed
-    rag_chunks = rag_query(req.match_query)
-    rag_context = "\n\n".join(rag_chunks)
-
-    # Layer 0 — live data
-    contexts = build_context_bundle(
-        req.team_a_id, req.team_b_id,
-        req.team_a, req.team_b,
-        req.competition_id,
-    )
-    contexts["statsbomb"] = rag_context  # inject RAG into tactical slice
+    # Layer 0 — WC26 MCP data (replaces static RAG + live API)
+    contexts = build_context_bundle(req.team_a, req.team_b, req.competition_id)
 
     # Layer 1 — meta-orchestrator spawns specialists
     specialists = spawn_specialists(req.match_query)

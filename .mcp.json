@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "wc26": {
+      "command": "npx",
+      "args": ["-y", "wc26-mcp"]
+    }
+  }
+}
