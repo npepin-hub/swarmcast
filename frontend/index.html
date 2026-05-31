@@ -97,7 +97,7 @@
     <section id="result-panel" class="hidden">
       <h2 class="section-label">Consensus</h2>
 
-      <!-- Swarm probability -->
+      <!-- Swarm probability + verdict -->
       <div id="consensus-display">
         <div class="consensus-hero">
           <span id="consensus-p" class="big-number">—</span>
@@ -107,15 +107,23 @@
         <p id="consensus-dissent" class="consensus-dissent hidden"></p>
       </div>
 
-      <!-- Narrative verdict -->
-      <div id="verdict-display" class="hidden">
-        <h3>Swarm Verdict</h3>
-        <p id="verdict-text"></p>
+      <!-- Final aggregate table — all agents at a glance -->
+      <div id="aggregate-table-wrap" class="hidden">
+        <h3 class="section-label" style="margin-top:1.5rem">Final Vote — All Agents</h3>
+        <table id="aggregate-table">
+          <thead>
+            <tr>
+              <th>Agent</th><th>Round 1</th><th>Round 2</th>
+              <th>Key signal</th><th>Reasoning</th>
+            </tr>
+          </thead>
+          <tbody id="aggregate-rows"></tbody>
+        </table>
       </div>
 
-      <!-- Polymarket winner odds + H2H + favorites -->
+      <!-- Polymarket — winner odds + H2H bar charts + favorites -->
       <div id="winner-odds-display" class="hidden">
-        <h3>Polymarket — Tournament Winner Odds</h3>
+        <h3 class="section-label" style="margin-top:1.5rem">Polymarket — Tournament Odds</h3>
         <div id="winner-odds-rows"></div>
       </div>
 
@@ -132,20 +140,6 @@
       <div id="edge-display" class="hidden">
         <div id="edge-badge"></div>
         <pre id="bet-receipt"></pre>
-      </div>
-
-      <!-- Final aggregate table — all agents at a glance -->
-      <div id="aggregate-table-wrap" class="hidden">
-        <h3 class="section-label" style="margin-top:1.5rem">Final Vote — All Agents</h3>
-        <table id="aggregate-table">
-          <thead>
-            <tr>
-              <th>Agent</th><th>Round 1</th><th>Round 2</th>
-              <th>Key signal</th><th>Reasoning</th>
-            </tr>
-          </thead>
-          <tbody id="aggregate-rows"></tbody>
-        </table>
       </div>
     </section>
 

@@ -120,18 +120,13 @@ function renderConsensus(consensus) {
 
   setText("consensus-p", `${pct}%`);
   setText("consensus-team-label", `chance ${team} wins`);
-  setText("consensus-plain",
-    `${nAgents} specialist agents deliberated over 2 rounds. ` +
-    `We are 80% confident the true probability sits between ${lo}% and ${hi}%.`
-  );
+  setText("consensus-plain", "");   // verdict fills this when it arrives
 
   const dissentEl = document.getElementById("consensus-dissent");
-  if (dissent > 0) {
-    dissentEl.textContent = `${dissent} agent${dissent > 1 ? "s" : ""} disagreed strongly — see minority dissent in the panel below.`;
-    dissentEl.classList.remove("hidden");
-  } else {
-    dissentEl.classList.add("hidden");
-  }
+  let ciText = `80% CI [${lo}%, ${hi}%]`;
+  if (dissent > 0) ciText += ` · ${dissent} agent${dissent > 1 ? "s" : ""} dissented`;
+  dissentEl.textContent = ciText;
+  dissentEl.classList.remove("hidden");
 
   renderAggregateTable();
 
@@ -168,53 +163,69 @@ function renderAggregateTable() {
 }
 
 function renderVerdict(text) {
-  show("verdict-display");
-  setText("verdict-text", text);
+  setText("consensus-plain", text);
+}
+
+function oddsBar(p, maxP, color) {
+  const w = Math.max(4, Math.round((p / maxP) * 220));
+  return `<div class="odds-bar-fill" style="width:${w}px;background:${color}"></div>`;
 }
 
 function renderWinnerOdds({ teams, h2h, favorites }) {
   show("winner-odds-display");
 
+  // H2H split bar — visual face-off
   let h2hHtml = "";
   if (h2h) {
-    const entries = Object.entries(h2h).sort(([, a], [, b]) => b - a);
-    const [topTeam, topP] = entries[0];
-    const [botTeam, botP] = entries[1];
+    const [[teamA, pA], [teamB, pB]] = Object.entries(h2h).sort(([,a],[,b]) => b - a);
     h2hHtml = `
       <div class="odds-subsection">
         <div class="odds-label">Market-implied match odds</div>
-        <div class="h2h-row">
-          <span class="h2h-winner">${topTeam}</span>
-          <span class="h2h-p">${(topP * 100).toFixed(1)}%</span>
-          <span class="h2h-vs">vs</span>
-          <span class="h2h-loser">${botTeam}</span>
-          <span class="h2h-p muted">${(botP * 100).toFixed(1)}%</span>
+        <div class="h2h-split">
+          <span class="h2h-team">${teamA}</span>
+          <div class="h2h-track">
+            <div class="h2h-bar-a" style="width:${(pA*100).toFixed(1)}%"></div>
+            <div class="h2h-bar-b" style="width:${(pB*100).toFixed(1)}%"></div>
+          </div>
+          <span class="h2h-team right">${teamB}</span>
+        </div>
+        <div class="h2h-pcts">
+          <span>${(pA*100).toFixed(1)}%</span><span>${(pB*100).toFixed(1)}%</span>
         </div>
         <div class="odds-note">Derived by normalising tournament winner odds</div>
       </div>`;
   }
 
+  // Tournament winner odds — horizontal bars
+  const maxTeamP = Math.max(...Object.values(teams).map(s => s.market_probability), 0.01);
   const teamHtml = `
     <div class="odds-subsection">
       <div class="odds-label">Tournament winner odds</div>
-      ${Object.entries(teams).map(([team, snap]) => `
-        <div class="winner-odds-row">
-          <span class="winner-team">${team}</span>
-          <span class="winner-p">${(snap.market_probability * 100).toFixed(1)}%</span>
-          <span class="winner-vol">${snap.volume_24h ? "Vol 24h $" + Number(snap.volume_24h).toLocaleString("en", {maximumFractionDigits: 0}) : ""}</span>
-        </div>`).join("")}
+      ${Object.entries(teams).map(([team, snap]) => {
+        const p = snap.market_probability;
+        const vol = snap.volume_24h ? `$${Number(snap.volume_24h).toLocaleString("en",{maximumFractionDigits:0})}` : "";
+        return `<div class="odds-bar-row">
+          <span class="odds-bar-label">${team}</span>
+          <div class="odds-bar-track">${oddsBar(p, maxTeamP, "var(--accent)")}</div>
+          <span class="odds-bar-val">${(p*100).toFixed(1)}%</span>
+          <span class="odds-bar-vol">${vol}</span>
+        </div>`;
+      }).join("")}
     </div>`;
 
-  const favHtml = favorites?.length ? `
-    <div class="odds-subsection">
+  // Top WC favorites — green bars
+  const favHtml = favorites?.length ? (() => {
+    const maxP = favorites[0].probability;
+    return `<div class="odds-subsection">
       <div class="odds-label">WC2026 top favorites</div>
       ${favorites.map((f, i) => `
-        <div class="fav-row">
-          <span class="fav-rank">${i + 1}</span>
-          <span class="fav-team">${f.team}</span>
-          <span class="fav-p">${(f.probability * 100).toFixed(1)}%</span>
+        <div class="odds-bar-row">
+          <span class="odds-bar-label"><span class="fav-rank">${i+1}</span>${f.team}</span>
+          <div class="odds-bar-track">${oddsBar(f.probability, maxP, "var(--green)")}</div>
+          <span class="odds-bar-val">${(f.probability*100).toFixed(1)}%</span>
         </div>`).join("")}
-    </div>` : "";
+    </div>`;
+  })() : "";
 
   document.getElementById("winner-odds-rows").innerHTML = h2hHtml + teamHtml + favHtml;
 }
@@ -335,7 +346,7 @@ document.getElementById("run-btn").addEventListener("click", async () => {
   document.getElementById("bars").innerHTML = "";
   document.getElementById("role-legend").innerHTML = "";
   Object.keys(barState).forEach(k => delete barState[k]);
-  ["critic-panel", "result-panel", "verdict-display", "winner-odds-display",
+  ["critic-panel", "result-panel", "winner-odds-display",
    "market-display", "edge-display"].forEach(hide);
   Object.keys(votesByRole).forEach(k => delete votesByRole[k]);
   const aggWrap = document.getElementById("aggregate-table-wrap");
