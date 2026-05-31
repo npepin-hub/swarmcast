@@ -198,11 +198,10 @@ window.assignRoles = (specialists) => {
     ROLE_HUES[s.role] = HUE_PALETTE[idx % HUE_PALETTE.length];
   });
 
-  // One boid per specialist — rebuild the pool
-  boids = specialists.map((s, idx) => {
+  // One boid per specialist — use live focus from orchestrator, fall back to map
+  boids = specialists.map((s) => {
     const hue   = ROLE_HUES[s.role];
-    const focus = ROLE_FOCUS[s.role] ?? s.role.replace(/_/g, " ");
-    // Access p from the p5 instance stored on the sketch
+    const focus = s.focus || ROLE_FOCUS[s.role] || s.role.replace(/_/g, " ");
     return new Boid(window._p5Instance, hue, s.role, focus);
   });
 };

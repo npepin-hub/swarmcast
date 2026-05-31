@@ -11,7 +11,7 @@ const KNOCKOUT_ROUNDS = [
   { label: "Final",          slots: 1 },
 ];
 
-let selectedMatch = null;   // { team_a, team_b, group, match_id, label }
+let selectedMatch = null;   // populated in selectMatch()
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -34,18 +34,26 @@ function selectMatch(row, match, groupId) {
   const teamA = stripFlag(homeRaw);
   const teamB = stripFlag(awayRaw);
 
+  const round = match.round || "Group Stage";
+  const competition = groupId
+    ? `${round} · Group ${groupId}`
+    : round;
+
   selectedMatch = {
     team_a: teamA,
     team_b: teamB,
+    home_team_code: (match.home_team_id || "").toLowerCase(),
+    away_team_code: (match.away_team_id || "").toLowerCase(),
+    match_date: match.date || "",
+    competition_id: groupId || "",
+    competition,
+    round,
     group: groupId,
-    match_id: match.id,
+    match_id: match.id || "",
     label: `${homeRaw} vs ${awayRaw}`,
   };
   window.selectedMatch = selectedMatch;
 
-  // Update run bar match label and notify ws.js
-  const matchLabel = document.getElementById("selected-match-label");
-  if (matchLabel) matchLabel.textContent = selectedMatch.label;
   window.onMatchSelected?.();
 }
 
@@ -56,8 +64,8 @@ function renderGroupTile(group) {
   tile.className = "group-tile";
 
   const header = document.createElement("div");
-  header.className = "group-header";
-  header.textContent = `Group ${group.id}`;
+  header.className = "group-header collapsible";
+  header.innerHTML = `Group ${group.id}<span class="group-chevron">▸</span>`;
   tile.appendChild(header);
 
   const teams = document.createElement("div");
@@ -71,7 +79,7 @@ function renderGroupTile(group) {
   tile.appendChild(teams);
 
   const matchList = document.createElement("div");
-  matchList.className = "match-list";
+  matchList.className = "match-list hidden";
   (group.matches || []).forEach(m => {
     const row = document.createElement("div");
     row.className = "match-row";
@@ -85,6 +93,11 @@ function renderGroupTile(group) {
     matchList.appendChild(row);
   });
   tile.appendChild(matchList);
+
+  header.addEventListener("click", () => {
+    const open = matchList.classList.toggle("hidden");
+    header.querySelector(".group-chevron").textContent = open ? "▸" : "▾";
+  });
 
   return tile;
 }
