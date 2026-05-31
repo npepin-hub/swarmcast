@@ -106,50 +106,6 @@ class Boid {
     p.pop();
   }
 
-  drawBubble(p) {
-    if (phase === "idle") return;
-
-    const roleLine  = this.role.replace(/_/g, " ");
-    const focusLine = this.focus;
-
-    p.textFont("system-ui, sans-serif");
-
-    // Measure both lines
-    p.textSize(10);
-    const rw = p.textWidth(roleLine);
-    p.textSize(8.5);
-    const fw = p.textWidth(focusLine);
-
-    const bw  = Math.max(rw, fw) + 16;
-    const bh  = 34;
-    const bx  = p.constrain(this.pos.x, bw / 2 + 6, W - bw / 2 - 6);
-    const by  = p.constrain(this.pos.y - 38, bh + 4, H - 10);
-
-    // Bubble body
-    p.colorMode(p.HSB, 360, 255, 255, 255);
-    p.noStroke();
-    p.fill(this.hue, 140, 40, 210);
-    p.rect(bx - bw / 2, by - bh, bw, bh, 5);
-
-    // Pointer tail
-    p.fill(this.hue, 140, 40, 210);
-    p.triangle(bx - 5, by, bx + 5, by, bx, by + 8);
-
-    // Role name (bright)
-    p.fill(this.hue, 60, 255, 245);
-    p.textSize(10);
-    p.textStyle(p.BOLD);
-    p.textAlign(p.CENTER, p.TOP);
-    p.text(roleLine, bx, by - bh + 5);
-
-    // Focus subtitle (muted)
-    p.fill(this.hue, 80, 200, 200);
-    p.textSize(8.5);
-    p.textStyle(p.NORMAL);
-    p.text(focusLine, bx, by - bh + 18);
-
-    p.textAlign(p.LEFT, p.BASELINE);
-  }
 }
 
 new p5((p) => {
@@ -169,9 +125,57 @@ new p5((p) => {
       b.edges();
       b.drawFish(p, cfg);
     }
-    // Draw bubbles on top of all fish
-    for (let b of boids) b.drawBubble(p);
+    // One bubble per role at the centroid of that role's group
+    if (phase !== "idle") drawGroupBubbles(p);
   };
+
+  function drawGroupBubbles(p) {
+    const centroids = {};
+    const counts    = {};
+    for (let b of boids) {
+      if (!b.role) continue;
+      if (!centroids[b.role]) { centroids[b.role] = { x: 0, y: 0, hue: b.hue, focus: b.focus }; counts[b.role] = 0; }
+      centroids[b.role].x += b.pos.x;
+      centroids[b.role].y += b.pos.y;
+      counts[b.role]++;
+    }
+    for (const role of Object.keys(centroids)) {
+      const n   = counts[role];
+      const cx  = centroids[role].x / n;
+      const cy  = centroids[role].y / n;
+      const hue = centroids[role].hue;
+      const roleLine  = role.replace(/_/g, " ");
+      const focusLine = centroids[role].focus || "";
+
+      p.textFont("system-ui, sans-serif");
+      p.textSize(10);
+      const rw = p.textWidth(roleLine);
+      p.textSize(8.5);
+      const fw = p.textWidth(focusLine);
+      const bw = Math.max(rw, fw) + 16;
+      const bh = 34;
+      const bx = p.constrain(cx, bw / 2 + 6, W - bw / 2 - 6);
+      const by = p.constrain(cy - 38, bh + 4, H - 10);
+
+      p.colorMode(p.HSB, 360, 255, 255, 255);
+      p.noStroke();
+      p.fill(hue, 140, 40, 210);
+      p.rect(bx - bw / 2, by - bh, bw, bh, 5);
+      p.triangle(bx - 5, by, bx + 5, by, bx, by + 8);
+
+      p.fill(hue, 60, 255, 245);
+      p.textSize(10);
+      p.textStyle(p.BOLD);
+      p.textAlign(p.CENTER, p.TOP);
+      p.text(roleLine, bx, by - bh + 5);
+
+      p.fill(hue, 80, 200, 200);
+      p.textSize(8.5);
+      p.textStyle(p.NORMAL);
+      p.text(focusLine, bx, by - bh + 18);
+      p.textAlign(p.LEFT, p.BASELINE);
+    }
+  }
 });
 
 // ── External API ──────────────────────────────────────────────────────────────
@@ -198,11 +202,14 @@ window.assignRoles = (specialists) => {
     ROLE_HUES[s.role] = HUE_PALETTE[idx % HUE_PALETTE.length];
   });
 
-  // One boid per specialist — use live focus from orchestrator, fall back to map
-  boids = specialists.map((s) => {
+  // 10 fish per specialist — bubble drawn at group centroid
+  const FISH_PER_ROLE = 10;
+  boids = specialists.flatMap((s) => {
     const hue   = ROLE_HUES[s.role];
     const focus = s.focus || ROLE_FOCUS[s.role] || s.role.replace(/_/g, " ");
-    return new Boid(window._p5Instance, hue, s.role, focus);
+    return Array.from({ length: FISH_PER_ROLE }, () =>
+      new Boid(window._p5Instance, hue, s.role, focus)
+    );
   });
 };
 
