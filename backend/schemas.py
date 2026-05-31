@@ -22,7 +22,7 @@ class AgentVote(BaseModel):
     key_signal: str
     reasoning: str
     uncertainty_flag: bool
-    round: int = 1  # 1 = first vote, 2 = post-Delphi
+    round: int = 1  # 1..N deliberation rounds
 
 
 # ── Critic layer ─────────────────────────────────────────────────────────────
@@ -81,6 +81,8 @@ class ForecastResult(BaseModel):
     match_query: str
     consensus: ConsensusResult
     critique: CritiqueOutput
+    round_votes: list[list[AgentVote]] = []  # one list per deliberation round
+    deliberation_rounds: int = 5
     market: MarketSnapshot | None
     spread: float | None
     edge_detected: bool

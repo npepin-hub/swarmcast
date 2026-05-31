@@ -30,9 +30,26 @@ class Settings(BaseSettings):
     )
     wandb_critic_model: str = "OpenPipe/Qwen3-14B-Instruct"
     wandb_delphi_model: str = "OpenPipe/Qwen3-14B-Instruct"
+    wandb_contrarian_model: str = Field(
+        default="coreweave/moonshotai/Kimi-K2.6",
+        validation_alias=AliasChoices(
+            "wandb_contrarian_model",
+            "WANDB_CONTRARIAN_MODEL",
+        ),
+    )
+    # Post-game scoring (WC backtest / known results). Off while WC2026 fixtures are open.
+    enable_match_scoring: bool = False
+    # Optional Weave LLM judge — requires enable_weave_judge=True and weave_judge_ref set
+    enable_weave_judge: bool = False
+    weave_judge_ref: str = Field(
+        default="",
+        validation_alias=AliasChoices("weave_judge_ref", "WEAVE_JUDGE_REF"),
+    )
     use_langgraph_delphi: bool = True
     specialist_use_mcp_tools: bool = True
-    specialist_mcp_recursion_limit: int = 10
+    specialist_mcp_recursion_limit: int = 14
+    deliberation_rounds: int = 5
+    vote_parse_retries: int = 2
 
     wc_api_key: str = ""
     football_data_api_key: str = ""

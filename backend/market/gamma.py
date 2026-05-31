@@ -47,15 +47,19 @@ _NAME_TO_CODE.update({
 })
 
 
-def get_match_markets(team_a: str, team_b: str, match_date: str) -> "MatchMarkets | None":
+def get_match_markets(
+    team_a: str,
+    team_b: str,
+    match_date: str,
+    home_team_code: str = "",
+    away_team_code: str = "",
+) -> "MatchMarkets | None":
     """Fetch 3-way match outcome markets for a WC2026 game.
     match_date: ISO date string e.g. '2026-06-11'. Returns None if not yet on Polymarket.
     """
-    from dataclasses import dataclass
-
-    code_a = _NAME_TO_CODE.get(team_a.lower(), team_a[:3].lower())
-    code_b = _NAME_TO_CODE.get(team_b.lower(), team_b[:3].lower())
-    slug = f"fifwc-{code_a}-{code_b}-{match_date}"
+    code_a = (home_team_code or _NAME_TO_CODE.get(team_a.lower(), team_a[:3])).lower()
+    code_b = (away_team_code or _NAME_TO_CODE.get(team_b.lower(), team_b[:3])).lower()
+    slug = build_wc_event_slug(code_a, code_b, match_date)
 
     with httpx.Client(timeout=10) as c:
         r = c.get(f"{_GAMMA_BASE}/events", params={"slug": slug})

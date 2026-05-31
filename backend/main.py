@@ -83,6 +83,36 @@ def run_market_validation(
     away_team_code: str = "",
 ):
     """Resolve exact match moneyline via Gamma slug; fall back to winner-odds H2H."""
+    with weave.attributes(
+        {
+            "polymarket_market_id": polymarket_market_id,
+            "match_date": match_date,
+            "home_team_code": home_team_code,
+            "away_team_code": away_team_code,
+            "team_a": team_a,
+            "team_b": team_b,
+        }
+    ):
+        return _run_market_validation(
+            consensus_probability,
+            team_a,
+            team_b,
+            polymarket_market_id,
+            match_date,
+            home_team_code,
+            away_team_code,
+        )
+
+
+def _run_market_validation(
+    consensus_probability: float,
+    team_a: str,
+    team_b: str,
+    polymarket_market_id: str,
+    match_date: str,
+    home_team_code: str,
+    away_team_code: str,
+):
     market_id = ""
     event_slug = ""
     try:
@@ -95,9 +125,12 @@ def run_market_validation(
             away_team_code=away_team_code,
         )
         if market_id:
-            snapshot, spread, edge_detected, bet_receipt = detect_and_act(
-                consensus_probability, market_id
-            )
+            with weave.attributes(
+                {"resolved_market_id": market_id, "event_slug": event_slug}
+            ):
+                snapshot, spread, edge_detected, bet_receipt = detect_and_act(
+                    consensus_probability, market_id
+                )
             return snapshot, spread, edge_detected, bet_receipt, market_id, event_slug
     except Exception as exc:
         print(f"[market] match market skipped: {exc}")
@@ -137,6 +170,7 @@ async def run_forecast_pipeline(req: ForecastRequest) -> ForecastResult:
         "competition_id": req.competition_id,
         "home_team_code": req.home_team_code,
         "away_team_code": req.away_team_code,
+        "polymarket_market_id": req.polymarket_market_id,
     }
     with weave.attributes(trace_meta):
         return await _run_forecast_pipeline_inner(req, emit)
@@ -162,26 +196,42 @@ async def _run_forecast_pipeline_inner(
         match_query=req.match_query,
         consensus=result.consensus,
         critique=result.critique,
+        round_votes=result.round_votes,
+        deliberation_rounds=settings.deliberation_rounds,
         market=None,
         spread=None,
         edge_detected=False,
         bet_receipt=None,
     )
 
-    # Verdict — narrative synthesis of round-2 votes
+    # Verdict — narrative synthesis of final-round votes
     verdict = await synthesize_verdict(
-        req.match_query, result.consensus, result.consensus.all_votes,
-        req.team_a, req.team_b,
+        req.match_query,
+        result.consensus,
+        result.consensus.all_votes,
+        req.team_a,
+        req.team_b,
+        final_round=settings.deliberation_rounds,
     )
     await emit(WSEventType.verdict, {"text": verdict})
 
     # Polymarket — 3-way match markets (win/draw/lose) if match date is known
+    match_mkts = None
     if req.match_date:
         match_mkts = await asyncio.to_thread(
-            get_match_markets, req.team_a, req.team_b, req.match_date
+            get_match_markets,
+            req.team_a,
+            req.team_b,
+            req.match_date,
+            req.home_team_code,
+            req.away_team_code,
         )
         if match_mkts:
             await emit(WSEventType.match_markets, match_mkts.model_dump())
+
+    market_id_for_validation = req.polymarket_market_id or (
+        match_mkts.team_a_market_id if match_mkts else ""
+    )
 
     # Polymarket — tournament winner odds + derived H2H + top favorites
     winner_odds = await asyncio.to_thread(fetch_winner_odds, req.team_a, req.team_b)
@@ -205,21 +255,24 @@ async def _run_forecast_pipeline_inner(
 
     snapshot, spread, edge_detected, bet_receipt, market_id, event_slug = (
         await asyncio.to_thread(
-            run_market_validation,
-            forecast.consensus.probability,
-            req.team_a,
-            req.team_b,
-            req.polymarket_market_id,
-            req.match_date,
-            req.home_team_code,
-            req.away_team_code,
+            lambda: run_market_validation(
+                consensus_probability=forecast.consensus.probability,
+                team_a=req.team_a,
+                team_b=req.team_b,
+                polymarket_market_id=market_id_for_validation,
+                match_date=req.match_date,
+                home_team_code=req.home_team_code,
+                away_team_code=req.away_team_code,
+            )
         )
     )
     await emit(WSEventType.market_check, {
         "snapshot": snapshot.model_dump() if snapshot else None,
         "spread": spread,
+        "polymarket_market_id": market_id,
         "market_id": market_id,
         "event_slug": event_slug,
+        "requested_market_id": req.polymarket_market_id,
     })
     await emit(WSEventType.edge_result, {
         "edge_detected": edge_detected,

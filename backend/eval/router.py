@@ -5,6 +5,7 @@ import asyncio
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 
+from ..config import settings
 from .wc_backtest import sample_2022
 from .weave_eval import run_weave_evaluation
 
@@ -76,7 +77,8 @@ async def history_ws(ws: WebSocket, seed: int = 42):
 
         await ws.send_json({
             "type": "complete",
-            "accuracy": correct_total / evaluated if evaluated else 0,
+            "accuracy": correct_total / evaluated if evaluated and settings.enable_match_scoring else None,
+            "scoring_enabled": settings.enable_match_scoring,
             "weave_summary": str(summary),
         })
 

@@ -660,6 +660,9 @@ pre#bet-receipt {
 
 /* ── Aggregate table ─────────────────────────────────────────────────────── */
 
+#aggregate-table-wrap {
+  overflow-x: auto;
+}
 #aggregate-table {
   width: 100%;
   border-collapse: collapse;
@@ -683,27 +686,92 @@ pre#bet-receipt {
 }
 #aggregate-table tr:last-child td { border-bottom: none; }
 #aggregate-table tr:hover td { background: rgba(255,255,255,0.02); }
+#aggregate-table .agg-agent-col { min-width: 7rem; }
+#aggregate-table .agg-round-col {
+  font-size: 0.65rem;
+  text-align: center;
+  padding: 0.35rem 0.25rem;
+  min-width: 2.6rem;
+}
+#aggregate-table .agg-round-cell {
+  text-align: center;
+  padding: 0.35rem 0.25rem;
+  vertical-align: middle;
+}
+#aggregate-table .agg-vote-score {
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+#aggregate-table .agg-vote-pct {
+  font-size: 0.68rem;
+  color: var(--accent);
+  line-height: 1.2;
+}
+#aggregate-table .agg-delta-col,
+#aggregate-table .agg-delta {
+  text-align: center;
+  white-space: nowrap;
+  padding: 0.35rem 0.4rem;
+  min-width: 2.5rem;
+}
+#aggregate-table .agg-agent-cell { min-width: 7rem; }
+#aggregate-table .agg-agent-name { font-weight: 600; }
+#aggregate-table tr.agg-notes-row td {
+  padding: 0 0.6rem 0.65rem;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+#aggregate-table tr.agg-vote-row td {
+  border-bottom: none;
+  padding-bottom: 0.2rem;
+}
+#aggregate-table .agg-notes-cell {
+  background: rgba(255,255,255,0.02);
+}
+#aggregate-table .agg-signal-line,
+#aggregate-table .agg-reasoning-line {
+  display: block;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--muted);
+  margin-top: 0.35rem;
+}
+#aggregate-table .agg-signal-line:first-child { margin-top: 0; }
+#aggregate-table .agg-notes-label {
+  display: inline-block;
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text);
+  margin-right: 0.5rem;
+  min-width: 4.5rem;
+}
+#aggregate-table .agg-reasoning-line {
+  margin-top: 0.5rem;
+  white-space: normal;
+  word-break: break-word;
+}
 
-.agg-focus    { color: var(--muted); font-size: 0.72rem; white-space: nowrap; }
-.agg-signal   { color: var(--muted); max-width: 180px; }
-.agg-reasoning { color: var(--muted); max-width: 340px; line-height: 1.5; }
-.agg-predicted-winner { font-size: 0.7rem; color: var(--muted); margin-top: 0.2rem; }
+.agg-focus { color: var(--muted); font-size: 0.72rem; }
+.agg-predicted-winner {
+  font-size: 0.65rem;
+  color: var(--muted);
+  margin-top: 0.15rem;
+  line-height: 1.2;
+}
 
-.delta     { font-size: 0.7rem; margin-left: 0.3rem; }
+.delta     { font-size: 0.7rem; }
 .delta.up  { color: var(--green); }
 .delta.dn  { color: var(--red); }
 
-.flip-tag  { font-size: 0.72rem; font-weight: 600; margin-top: 0.25rem; display: inline-block; color: var(--accent); white-space: nowrap; }
-.flip-tag .flip-coin { font-size: 1.08rem; }
+.flip-tag  { font-size: 0.68rem; font-weight: 600; margin-top: 0.25rem; display: block; color: var(--accent); }
+.flip-tag .flip-coin { font-size: 1rem; }
 
-.conf-tag  { font-size: 0.72rem; font-weight: 600; margin-top: 0.25rem; display: inline-block; white-space: nowrap; }
+.conf-tag  { font-size: 0.68rem; font-weight: 600; margin-top: 0.25rem; display: block; }
 .conf-up   { color: var(--green); }
 .conf-dn   { color: var(--red); }
-
-#aggregate-table th:nth-child(2),
-#aggregate-table td:nth-child(2),
-#aggregate-table th:nth-child(3),
-#aggregate-table td:nth-child(3) { width: 160px; min-width: 160px; }
 
 /* ── Agent card ──────────────────────────────────────────────────────────── */
 
