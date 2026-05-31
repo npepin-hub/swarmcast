@@ -14,41 +14,66 @@
 
   <main>
 
-    <!-- ── Group stage ─────────────────────────────────────────────────── -->
+    <!-- ── Hero ───────────────────────────────────────────────────────────── -->
+    <section id="hero">
+      <p class="hero-text">
+        A swarm of AI specialists debates your question about a World Cup match —
+        each agent working in isolation, each fish a different expert.
+        A critic finds what the collective is blind to. A Delphi vote produces consensus.
+        If SwarmCast disagrees with Polymarket by 8+ points, it places a bet.
+      </p>
+      <ol class="hero-steps">
+        <li>Pick a match below</li>
+        <li>Choose your question</li>
+        <li>Watch the fish deliberate</li>
+      </ol>
+    </section>
+
+    <!-- ── Bracket ────────────────────────────────────────────────────────── -->
     <section id="bracket-section">
-      <h2 class="section-label">Group Stage</h2>
+      <h2 class="section-label">Group Stage — pick a match</h2>
       <div id="group-grid"></div>
 
-      <!-- Knockout stages -->
       <h2 class="section-label knockout-label">Knockout Stage</h2>
       <div id="knockout-bracket"></div>
     </section>
 
-    <!-- ── Sticky run bar (appears on match select) ────────────────────── -->
+    <!-- ── Sticky run bar ─────────────────────────────────────────────────── -->
     <div id="run-bar" class="hidden">
-      <span id="selected-match-label"></span>
-      <div class="run-bar-actions">
+      <div class="run-bar-match">
+        <span class="run-bar-label">Selected</span>
+        <span id="selected-match-label"></span>
+      </div>
+      <div class="run-bar-controls">
+        <select id="question-select">
+          <option value="who_wins">Who wins?</option>
+          <option value="final_score" selected>Predict the final score</option>
+          <option value="first_scorer">Who scores first?</option>
+          <option value="both_score">Both teams to score?</option>
+          <option value="over_goals">Over 2.5 goals?</option>
+        </select>
         <input id="market-id" type="text" placeholder="Polymarket ID (optional)" />
         <button id="run-btn">Run SwarmCast</button>
       </div>
     </div>
 
-    <!-- ── Boids visualization ─────────────────────────────────────────── -->
+    <!-- ── Boids visualization ────────────────────────────────────────────── -->
     <section id="viz-panel" class="hidden">
       <div id="boids-container"></div>
-      <div id="phase-label">Waiting for match…</div>
-    </section>
-
-    <!-- ── Live agent feed ────────────────────────────────────────────── -->
-    <section id="agent-feed" class="hidden">
-      <h2 class="section-label">Agent Panel</h2>
-      <div id="agent-cards"></div>
-      <div id="bar-chart">
-        <div id="bars"></div>
+      <div id="viz-footer">
+        <span id="phase-label">Waiting for match…</span>
+        <div id="role-legend"></div>
       </div>
     </section>
 
-    <!-- ── Critic output ──────────────────────────────────────────────── -->
+    <!-- ── Live agent feed ────────────────────────────────────────────────── -->
+    <section id="agent-feed" class="hidden">
+      <h2 class="section-label">Agent Panel</h2>
+      <div id="agent-cards"></div>
+      <div id="bar-chart"><div id="bars"></div></div>
+    </section>
+
+    <!-- ── Critic ─────────────────────────────────────────────────────────── -->
     <section id="critic-panel" class="hidden">
       <h2 class="section-label">Holistic Critic</h2>
       <div id="critic-gaps"></div>
@@ -56,7 +81,7 @@
       <div id="critic-actions"></div>
     </section>
 
-    <!-- ── Consensus + market ─────────────────────────────────────────── -->
+    <!-- ── Consensus + market ─────────────────────────────────────────────── -->
     <section id="result-panel" class="hidden">
       <h2 class="section-label">Consensus</h2>
       <div id="consensus-display">

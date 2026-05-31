@@ -1,38 +1,49 @@
 /**
- * p5.js Boids simulation — fish chaos → alignment → lock
+ * p5.js Boids — one color per specialist role.
  *
- * Phase contract (set via window.swarmPhase):
- *   "idle"        – slow random drift
- *   "deliberating"– high chaos, random headings
- *   "critic"      – brief turbulence spike
- *   "delphi"      – partial alignment emerging
- *   "consensus"   – full lock, fish form tight cluster
+ * Phase transitions (set via window.setSwarmPhase):
+ *   idle → deliberating → critic → delphi → consensus
+ *
+ * Role assignment (set via window.assignRoles):
+ *   Called when specialist list arrives; partitions boids into
+ *   equal-sized groups, one per role, each with its own hue.
  */
 
 const BOID_COUNT = 60;
 const W = 860, H = 320;
 
-// Phase → alignment strength mapping
+// Hue values (HSB 0-360) per specialist role
+const ROLE_HUES = {
+  tactical_analyst:   210,   // blue
+  historical_stats:   270,   // purple
+  current_form:       120,   // green
+  squad_fitness:      30,    // orange
+  tournament_context: 185,   // cyan
+  contrarian:         0,     // red
+};
+const DEFAULT_HUE = 55;      // yellow — dynamically spawned agents
+
 const PHASE_CONFIG = {
-  idle:         { align: 0.02, cohesion: 0.01, separate: 0.15, speed: 1.2,  chaos: 0.8 },
-  deliberating: { align: 0.04, cohesion: 0.02, separate: 0.20, speed: 2.0,  chaos: 1.4 },
-  critic:       { align: 0.01, cohesion: 0.01, separate: 0.30, speed: 2.5,  chaos: 2.0 },
-  delphi:       { align: 0.20, cohesion: 0.10, separate: 0.18, speed: 1.8,  chaos: 0.4 },
-  consensus:    { align: 0.90, cohesion: 0.60, separate: 0.10, speed: 1.2,  chaos: 0.0 },
+  idle:         { align: 0.02, cohesion: 0.01, separate: 0.15, speed: 1.2, chaos: 0.8 },
+  deliberating: { align: 0.04, cohesion: 0.02, separate: 0.20, speed: 2.0, chaos: 1.4 },
+  critic:       { align: 0.01, cohesion: 0.01, separate: 0.30, speed: 2.5, chaos: 2.0 },
+  delphi:       { align: 0.20, cohesion: 0.10, separate: 0.18, speed: 1.8, chaos: 0.4 },
+  consensus:    { align: 0.90, cohesion: 0.60, separate: 0.10, speed: 1.2, chaos: 0.0 },
 };
 
 let boids = [];
 let phase = "idle";
 
 class Boid {
-  constructor(p) {
-    this.p = p;
-    this.pos = p.createVector(p.random(W), p.random(H));
-    this.vel = p5.Vector.random2D().mult(p.random(1, 2));
-    this.acc = p.createVector(0, 0);
+  constructor(p, hue) {
+    this.p    = p;
+    this.pos  = p.createVector(p.random(W), p.random(H));
+    this.vel  = p5.Vector.random2D().mult(p.random(1, 2));
+    this.acc  = p.createVector(0, 0);
     this.maxSpeed = 3;
     this.maxForce = 0.08;
-    this.hue = p.random(200, 240);
+    this.hue  = hue;
+    this.pulse = 0;   // frames remaining for vote-flash
   }
 
   edges() {
@@ -42,58 +53,55 @@ class Boid {
     else if (this.pos.y < 0) this.pos.y = H;
   }
 
-  flock(boids, cfg) {
-    let align    = this.p.createVector();
-    let cohesion = this.p.createVector();
-    let separate = this.p.createVector();
-    let aCount = 0, cCount = 0, sCount = 0;
-    const R_ALIGN = 60, R_COHES = 100, R_SEP = 28;
+  flock(all, cfg) {
+    let align = this.p.createVector();
+    let cohes = this.p.createVector();
+    let sep   = this.p.createVector();
+    let ac = 0, cc = 0, sc = 0;
+    const RA = 60, RC = 100, RS = 28;
 
-    for (let other of boids) {
-      if (other === this) continue;
-      const d = p5.Vector.dist(this.pos, other.pos);
-      if (d < R_ALIGN) { align.add(other.vel); aCount++; }
-      if (d < R_COHES) { cohesion.add(other.pos); cCount++; }
-      if (d < R_SEP)   {
-        let diff = p5.Vector.sub(this.pos, other.pos).div(d);
-        separate.add(diff); sCount++;
-      }
+    for (let o of all) {
+      if (o === this) continue;
+      const d = p5.Vector.dist(this.pos, o.pos);
+      if (d < RA) { align.add(o.vel); ac++; }
+      if (d < RC) { cohes.add(o.pos); cc++; }
+      if (d < RS) { sep.add(p5.Vector.sub(this.pos, o.pos).div(d)); sc++; }
     }
 
-    if (aCount) { align.div(aCount).setMag(this.maxSpeed).sub(this.vel).limit(this.maxForce); }
-    if (cCount) {
-      cohesion.div(cCount);
-      cohesion = p5.Vector.sub(cohesion, this.pos).setMag(this.maxSpeed).sub(this.vel).limit(this.maxForce);
+    if (ac) align.div(ac).setMag(this.maxSpeed).sub(this.vel).limit(this.maxForce);
+    if (cc) {
+      cohes.div(cc);
+      cohes = p5.Vector.sub(cohes, this.pos).setMag(this.maxSpeed).sub(this.vel).limit(this.maxForce);
     }
-    if (sCount) { separate.div(sCount).setMag(this.maxSpeed).sub(this.vel).limit(this.maxForce); }
+    if (sc) sep.div(sc).setMag(this.maxSpeed).sub(this.vel).limit(this.maxForce);
 
     this.acc.add(align.mult(cfg.align));
-    this.acc.add(cohesion.mult(cfg.cohesion));
-    this.acc.add(separate.mult(cfg.separate));
-
-    // Chaos jitter
-    if (cfg.chaos > 0) {
-      this.acc.add(p5.Vector.random2D().mult(cfg.chaos * 0.05));
-    }
+    this.acc.add(cohes.mult(cfg.cohesion));
+    this.acc.add(sep.mult(cfg.separate));
+    if (cfg.chaos > 0) this.acc.add(p5.Vector.random2D().mult(cfg.chaos * 0.05));
   }
 
   update(cfg) {
     this.vel.add(this.acc).limit(this.maxSpeed * (cfg.speed / 2));
     this.pos.add(this.vel);
     this.acc.set(0, 0);
+    if (this.pulse > 0) this.pulse--;
   }
 
   draw(p, cfg) {
-    const angle = this.vel.heading();
-    const alpha = this.p.map(cfg.align, 0.02, 0.9, 140, 230);
+    const angle  = this.vel.heading();
+    const bright = this.pulse > 0 ? 255 : 210;
+    const sat    = this.pulse > 0 ? 200 : 180;
+    const alpha  = this.p.map(cfg.align, 0.02, 0.9, 140, 235);
+    const scale  = this.pulse > 0 ? 1.5 : 1.0;
+
     p.push();
     p.translate(this.pos.x, this.pos.y);
     p.rotate(angle);
+    p.scale(scale);
     p.noStroke();
-    p.fill(this.hue, 180, 220, alpha);
-    // Fish body
+    p.fill(this.hue, sat, bright, alpha);
     p.ellipse(0, 0, 12, 5);
-    // Tail
     p.triangle(-6, 0, -11, -4, -11, 4);
     p.pop();
   }
@@ -104,7 +112,8 @@ new p5((p) => {
     const cnv = p.createCanvas(W, H);
     cnv.parent("boids-container");
     p.colorMode(p.HSB, 360, 255, 255, 255);
-    for (let i = 0; i < BOID_COUNT; i++) boids.push(new Boid(p));
+    // Default: all fish one color until roles are assigned
+    for (let i = 0; i < BOID_COUNT; i++) boids.push(new Boid(p, DEFAULT_HUE));
   };
 
   p.draw = () => {
@@ -119,16 +128,48 @@ new p5((p) => {
   };
 });
 
-// External API — called from ws.js
+// ── External API ──────────────────────────────────────────────────────────────
+
 window.setSwarmPhase = (newPhase) => {
-  if (PHASE_CONFIG[newPhase]) {
-    phase = newPhase;
-    document.getElementById("phase-label").textContent = {
-      idle:         "Waiting for match...",
-      deliberating: "Agents deliberating independently...",
-      critic:       "Holistic critic firing...",
-      delphi:       "Delphi round — consensus emerging...",
-      consensus:    "Consensus locked.",
-    }[newPhase] || newPhase;
+  if (!PHASE_CONFIG[newPhase]) return;
+  phase = newPhase;
+  const labels = {
+    idle:         "Waiting for match...",
+    deliberating: "Agents deliberating independently...",
+    critic:       "Holistic critic firing...",
+    delphi:       "Delphi round — consensus emerging...",
+    consensus:    "Consensus locked.",
+  };
+  const el = document.getElementById("phase-label");
+  if (el) el.textContent = labels[newPhase] || newPhase;
+};
+
+/**
+ * Partition boids into equal groups, one per role.
+ * specialists: [{ role, system_prompt, data_slice_id }, ...]
+ */
+window.assignRoles = (specialists) => {
+  if (!specialists || specialists.length === 0) return;
+  const groupSize = Math.floor(BOID_COUNT / specialists.length);
+  specialists.forEach((s, idx) => {
+    const hue   = ROLE_HUES[s.role] ?? DEFAULT_HUE;
+    const start = idx * groupSize;
+    const end   = idx === specialists.length - 1 ? BOID_COUNT : start + groupSize;
+    for (let i = start; i < end; i++) {
+      if (boids[i]) { boids[i].hue = hue; boids[i].role = s.role; }
+    }
+  });
+};
+
+/**
+ * Flash the boids belonging to a role when their vote arrives.
+ * role: string matching specialist role name
+ */
+window.pulseRole = (role) => {
+  for (let b of boids) {
+    if (b.role === role) b.pulse = 18;
   }
 };
+
+// Legend: exposed so ws.js can render a DOM legend
+window.ROLE_HUES = ROLE_HUES;
