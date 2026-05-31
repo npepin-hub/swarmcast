@@ -12,16 +12,11 @@
 const BOID_COUNT = 60;
 const W = 860, H = 320;
 
-// Hue values (HSB 0-360) per specialist role
-const ROLE_HUES = {
-  tactical_analyst:   210,   // blue
-  historical_stats:   270,   // purple
-  current_form:       120,   // green
-  squad_fitness:      30,    // orange
-  tournament_context: 185,   // cyan
-  contrarian:         0,     // red
-};
-const DEFAULT_HUE = 55;      // yellow — dynamically spawned agents
+// Built at runtime from the actual specialist list — one hue per slot,
+// evenly distributed around the wheel so every group is visually distinct.
+// Keyed by role name after assignRoles() is called.
+const ROLE_HUES = {};
+const DEFAULT_HUE = 55;
 
 const PHASE_CONFIG = {
   idle:         { align: 0.02, cohesion: 0.01, separate: 0.15, speed: 1.2, chaos: 0.8 },
@@ -146,15 +141,28 @@ window.setSwarmPhase = (newPhase) => {
 
 /**
  * Partition boids into equal groups, one per role.
+ * Hues are generated dynamically — evenly spaced around the colour wheel,
+ * offset by 30° so we never start at pure red (which looks like an error state).
  * specialists: [{ role, system_prompt, data_slice_id }, ...]
  */
 window.assignRoles = (specialists) => {
   if (!specialists || specialists.length === 0) return;
-  const groupSize = Math.floor(BOID_COUNT / specialists.length);
+
+  const n   = specialists.length;
+  const step = 360 / n;
+
+  // Clear and rebuild the hue map for this run
+  Object.keys(ROLE_HUES).forEach(k => delete ROLE_HUES[k]);
   specialists.forEach((s, idx) => {
-    const hue   = ROLE_HUES[s.role] ?? DEFAULT_HUE;
+    ROLE_HUES[s.role] = Math.round((30 + idx * step) % 360);
+  });
+
+  // Assign boid groups
+  const groupSize = Math.floor(BOID_COUNT / n);
+  specialists.forEach((s, idx) => {
+    const hue   = ROLE_HUES[s.role];
     const start = idx * groupSize;
-    const end   = idx === specialists.length - 1 ? BOID_COUNT : start + groupSize;
+    const end   = idx === n - 1 ? BOID_COUNT : start + groupSize;
     for (let i = start; i < end; i++) {
       if (boids[i]) { boids[i].hue = hue; boids[i].role = s.role; }
     }
