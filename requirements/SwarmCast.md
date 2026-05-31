@@ -2,342 +2,263 @@
 ### A Self-Improving Multi-Agent Swarm for World Cup Match Forecasting
 *with Polymarket Edge Detection and Automated Bet Placement*
 
-> "Feed it a World Cup match. A swarm of specialist agents deliberates in isolation, a holistic critic finds what the collective is blind to, and a Delphi consensus emerges — then the swarm bets against the market if it disagrees. Every call logged. Every bet traced. Every resolved match a training sample."
+> "Feed it a World Cup match. A swarm of specialist agents deliberates in isolation, a self-improving critic rewrites the swarm in real time, and emergent consensus appears — visualized as a school of fish finding direction."
 
 *Multi-Agent Orchestration Hackathon · MIT / The Engine, Cambridge MA · May 31, 2026 · #BosTechWeek*
 
 ---
 
-## 0. Forecast Question
-
-```python
-MATCH_HOME = "<home team>"
-MATCH_AWAY = "<away team>"
-
-QUESTION = (
-    f"Predict the final score for {MATCH_HOME} vs {MATCH_AWAY} in a World Cup match. "
-    "Provide goals for each team and a confidence score between 0.0 and 1.0."
-)
-```
-
-The `QUESTION` string is the single input to the pipeline. The meta-orchestrator receives it verbatim and uses it to spawn the specialist pool. All agent prompts are derived from this question — no other match context is pre-injected by the caller.
-
----
-
 ## 1. The Core Idea
 
-SwarmCast is a multi-agent deliberation system for World Cup match forecasting. A meta-orchestrator reads the match and spawns a pool of specialist agents — each with a narrow analytical lens and a scoped data slice. Agents deliberate in parallel without seeing each other's outputs. A holistic critic reads the full panel as a unified picture and identifies what the collective intelligence is missing. A Delphi voting round gives specialists one revision pass. A confidence-weighted consensus probability emerges.
+SwarmCast is a multi-agent deliberation system for World Cup 2026 match forecasting. A meta-orchestrator reads a match question and dynamically spawns a pool of 8 specialist agents — each with a narrow analytical lens, a named focus area, and access to live MCP data. Agents deliberate in parallel in full isolation. A holistic critic reads the full panel and identifies what the collective intelligence is missing. A LangGraph-powered Delphi round gives each specialist one revision pass via its own agent thread. A confidence-weighted consensus probability emerges.
 
-The consensus probability is then compared to the Polymarket implied price on the same match — fetched for the first time only after the vote is sealed. If the divergence exceeds the edge threshold (default: 8 percentage points), SwarmCast places a limit order on the CLOB API.
+The consensus is compared to Polymarket — either a live match market or a head-to-head probability derived from tournament winner markets. If the spread exceeds 8 percentage points, SwarmCast places a limit order.
 
-Every deliberation step is traced in W&B Weave. When the match resolves, traces are labeled with the ground truth outcome — building the training dataset for v2 Serverless RL fine-tuning on CoreWeave.
+Every call is traced in W&B Weave. Resolved matches become training samples for v2.
 
 ### Why This Is Interesting
 
-- **Genuine independent deliberation** — agents never see the market price or each other's reasoning during round 1. The probability is SwarmCast's own, not an anchored derivative of the crowd.
-- **Holistic adversarial critique** — the critic reads the full panel as a unified picture and identifies what the collective intelligence is missing about this specific match. It does not antagonize individual agents for the sake of it. The challenge is question-specific, not agent-specific.
-- **Anthropic SDK as the orchestration backbone** — Claude Sonnet 4 runs all specialist agents and the meta-orchestrator via tool use for structured output. Claude Haiku 4.5 runs the holistic critic fast and cheap. Voyage-3 handles embeddings. One coherent provider story: Anthropic reasons, CoreWeave runs, Weave watches.
-- **Falsifiable claim** — the output is a probability with a confidence interval, a minority dissent report, and an explicit spread against the market. Judges can verify it in June.
-- **Weave-instrumented from day one** — every agent call is a future training sample. The v2 retraining story is already embedded in the v1 architecture.
-- **CoreWeave timing** — the platform that enables the v2 training loop was announced two days before the hackathon. SwarmCast is the proof of concept for that platform story.
+- **Genuine multi-agent orchestration** — 8 specialist agents with distinct roles, running in parallel via `asyncio.gather`. Not a single model with tools.
+- **LangGraph Swarm for Delphi** — round 2 runs each specialist in its own LangGraph ReAct agent thread, preventing context blowup and enabling true per-agent deliberation.
+- **MCP tools baked into agents** — specialists call wc26-mcp and @zafronix/wc-mcp directly as LangChain tools. Agents actively fetch their own data rather than receiving pre-injected context.
+- **Self-improving critic loop** — the critic identifies coverage gaps and groupthink, the orchestrator spawns new agents or rewrites prompts, the swarm improves.
+- **Falsifiable claim** — the output is a predicted score, a probability, a confidence interval, a minority dissent report, and an explicit spread against Polymarket. Verifiable in June.
+- **Polymarket always shows** — pre-tournament, winner market odds (live $517M) are converted to head-to-head probability so the comparison is never empty.
 
 ---
 
 ## 2. System Architecture
 
-### 2.1 Layers Overview
+### 2.1 Pipeline
 
-| Layer | Name | Description |
-|-------|------|-------------|
-| 0 | RAG Seed | Retrieves football-only context: static Kaggle corpus via cosine similarity + live squad, form, injury data. Polymarket explicitly excluded. |
-| 1 | Meta-Orchestrator | Claude Sonnet 4 reads the match, writes specialist system prompts dynamically, spawns the agent pool. |
-| 2 | Specialist Swarm | N agents in parallel on Claude Sonnet 4, full isolation, scoped context. Each emits `{ probability, confidence, key_signal, reasoning, uncertainty_flag }`. |
-| 3 | Holistic Critic | Claude Haiku 4.5 reads the full panel as one document. Returns a system-level critique: `coverage_gaps`, `groupthink_signals`, `recommended_actions`. Does NOT challenge agents individually. |
-| 4 | Delphi Vote | Specialists see aggregate P distribution (no reasoning chains), submit final vote. Confidence-weighted consensus P + 80% CI + minority dissent computed. |
-| 5 | Weave Observability | Cross-cutting. Every agent call traced throughout: role, prompt version, P emitted, reasoning, round 1 vs round 2 delta. |
-| 6 | Polymarket Validation | **First and only contact with Polymarket.** Gamma API fetches market P. Edge detector: `\|SwarmCast P − market P\|`. If > 8%: CLOB API places limit order. |
-| 7 | Visualization | p5.js Boids fish simulation via WebSocket. Fish chaos → alignment → lock mirrors deliberation state. |
-| 8 | Output | Consensus P + CI + minority dissent + spread vs market + bet receipt or no-edge flag. |
-
-### 2.2 Model Architecture
-
-| Role | Model | Purpose |
-|------|-------|---------|
-| Meta-orchestrator | Claude Sonnet 4 (Anthropic API) | Reads match, writes specialist prompts dynamically, parses critic output, decides spawn/rewrite/broadcast actions. |
-| Specialist agents | Claude Sonnet 4 (Anthropic API) | All 5–6 specialists. Structured output via tool use — vote schema defined as a tool, Claude fills it. `asyncio.to_thread` for parallel execution. |
-| Holistic critic | Claude Haiku 4.5 (Anthropic API) | Fast, cheap system-level auditor. Reads full panel as one document. Returns single critique document. Does NOT address individual agents. |
-| Embedding model | Voyage-3 (voyageai, Anthropic-recommended) | Embeds static Kaggle corpus offline. Cosine similarity via numpy at query time — no vector DB for v1. |
-
-### 2.3 Specialist Agent Pool — World Cup Edition
-
-For "Will [Team A] beat [Team B]?", the meta-agent spawns:
-
-- **Tactical Analyst** — StatsBomb xG, PPDA, formation, possession stats. Assesses structural tactical advantages.
-- **Historical Stats Agent** — Kaggle WC history 1930–2022, H2H record, win rate by stage and confederation matchup. Computes base rates.
-- **Current Form Agent** — Last 5 results, goals scored/conceded, W/D/L sequence. Assesses momentum trajectory.
-- **Squad Fitness Agent** — Transfermarkt injury list, suspensions, squad depth. Assesses lineup quality delta vs full-strength.
-- **Tournament Context Agent** — Group standings, qualification scenarios, rest days, venue, climate. Assesses strategic incentives affecting lineup or intensity.
-- **Contrarian Agent** — Structurally biased against the favourite. Surfaces the strongest underdog case.
-
-### 2.4 Holistic Critic Design
-
-The critic is a system-level auditor, not a debate coach. It receives the full panel output as one unified document — all agent roles, probabilities, confidence scores, key signals, and reasoning chains concatenated — and is instructed:
-
-> *"You are a system-level auditor. Read this panel output as a whole. Do not comment on individual agents. Identify what the collective analysis is missing about this specific question. Return a structured critique with: `coverage_gaps` (list), `groupthink_signals` (list), `recommended_actions` (spawn | rewrite | broadcast, with rationale)."*
-
-The orchestrator then acts:
-- **spawn** — creates new specialist agents for identified coverage gaps
-- **rewrite** — updates system prompts for agents exhibiting groupthink
-- **broadcast** — sends the gap signal as an addendum to all specialists before the Delphi round
-
-The critic never directly addresses any agent. Its output goes to the orchestrator only.
-
-### 2.5 Anthropic SDK Orchestration Pattern
-
-All LLM calls use the Anthropic Python SDK. `asyncio.to_thread` wraps the synchronous client for parallel specialist execution:
-
-```python
-import anthropic
-import asyncio
-
-client = anthropic.Anthropic()
-
-VOTE_TOOL = {
-    "name": "submit_vote",
-    "description": "Submit your probability estimate and reasoning",
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "probability": {"type": "number"},
-            "confidence": {"type": "number"},
-            "key_signal": {"type": "string"},
-            "reasoning": {"type": "string"},
-            "uncertainty_flag": {"type": "boolean"}
-        },
-        "required": ["probability", "confidence", "key_signal", "reasoning", "uncertainty_flag"]
-    }
-}
-
-async def run_specialist(system_prompt: str, context: str) -> dict:
-    response = await asyncio.to_thread(
-        client.messages.create,
-        model="claude-sonnet-4-20250514",
-        max_tokens=1024,
-        tools=[VOTE_TOOL],
-        tool_choice={"type": "tool", "name": "submit_vote"},
-        system=system_prompt,
-        messages=[{"role": "user", "content": context}]
-    )
-    return response.content[0].input  # tool use returns structured dict
-
-async def run_swarm(specialists: list[dict]) -> list[dict]:
-    return await asyncio.gather(*[
-        run_specialist(**s) for s in specialists
-    ])
+```
+match_query + team_a + team_b
+        │
+        ▼
+[MCP Context]  wc26-mcp + @zafronix/wc-mcp — 13 parallel calls via asyncio.gather
+        │
+        ▼
+[Meta-Orchestrator]  Qwen3-14B via W&B Inference
+  → writes 8 specialist definitions (role, focus, system_prompt, data_slice_id)
+        │
+        ▼
+[Specialist Swarm — Round 1]  asyncio.gather, full isolation
+  → each agent: ReAct loop with MCP tools + inference_chat
+  → output: { team_a_goals, team_b_goals, probability, confidence, key_signal, reasoning }
+        │
+        ▼
+[Holistic Critic]  reads full panel as one document
+  → returns: coverage_gaps, groupthink_signals, recommended_actions
+        │
+        ▼
+[Orchestrator acts]  spawn / rewrite / broadcast
+        │
+        ▼
+[Delphi Round 2]  LangGraph Swarm — one ReAct agent thread per specialist
+  → agents see aggregate P distribution only (no reasoning chains)
+  → each submits a revised vote
+        │
+        ▼
+[Consensus]  confidence-weighted P + 80% CI + minority dissent
+        │
+        ▼
+[Polymarket Validation]  first and only contact with Polymarket
+  → match market if available; falls back to winner-odds H2H
+  → edge = |SwarmCast P − market P|; if > 8pp → CLOB limit order
+        │
+        ▼
+[Output]  consensus tile + VS Polymarket + agent aggregate table
 ```
 
-The meta-orchestrator is prompted to return a JSON array of specialist definitions at runtime — each with `role`, `system_prompt`, and `data_slice_id`. Dynamic spawning: the orchestrator writes the agents' instructions based on the specific match question.
+### 2.2 Inference Layer
+
+All LLM calls go through W&B Inference (CoreWeave-backed GPU infrastructure) via an OpenAI-compatible endpoint. Model: `OpenPipe/Qwen3-14B-Instruct` for all roles (orchestrator, specialists, critic, Delphi). Configured in `backend/agents/inference.py` using the `openai` Python SDK pointed at `https://api.inference.wandb.ai/v1`.
+
+### 2.3 Specialist Agent Pool (8 agents)
+
+| Role | Focus | What they analyze |
+|---|---|---|
+| tactical_analyst | xG · formations · pressing | xG, formation, pressing systems, structural tactical advantages |
+| historical_stats | WC history · H2H · base rates | H2H records, WC tournament base rates, confederation matchup history |
+| current_form | last 5 results · momentum · goals | Recent results, goals scored/conceded, trajectory |
+| squad_fitness | injuries · suspensions · depth | Injury lists, suspensions, squad depth vs full-strength |
+| tournament_context | standings · incentives · venue | Group standings, qualification scenarios, rest days, venue, strategic incentives |
+| set_piece_specialist | corners · free kicks · dead ball | Set piece attacking/defensive record, key delivery and target players |
+| psychological_analyst | big game record · pressure · experience | High-pressure record, average caps, big-game history, mental resilience |
+| contrarian | underdog case · upset risk | Structurally biased against the favourite. Surfaces the strongest upset mechanism. |
+
+The orchestrator aims for 7–9 specialists and may spawn additional agents based on critic recommendations. Each definition includes a `focus` field displayed in the fish speech bubble and the final aggregate table.
+
+### 2.4 Delphi — LangGraph Swarm
+
+Round 2 is implemented in `backend/agents/swarm_langgraph.py` using `langgraph-swarm`. Each specialist runs as a separate `create_react_agent` node. The orchestrator agent hands off to each specialist in sequence; each specialist sees only the aggregate probability distribution from round 1 (no reasoning chains) and submits a revised vote. This prevents context blowup across agents and enables genuine per-agent deliberation.
+
+### 2.5 MCP Tool Integration
+
+Specialists call live data as LangChain tools defined in `backend/agents/mcp_tools.py`. Tools are bound at agent spawn time based on `data_slice_id`. The MCP registry (`backend/data/mcp_registry.py`) maps tool names to the appropriate MCP subprocess call (wc26-mcp or @zafronix/wc-mcp).
 
 ---
 
 ## 3. Data Sources
 
-> **Critical constraint:** No source that publishes betting odds, prediction market prices, or bookmaker lines is permitted in the deliberation layer.
+> **Critical constraint:** No source publishing betting odds, prediction market prices, or bookmaker lines is permitted in the deliberation layer.
 
-### Static — embed offline tonight
+### Live — MCP servers
 
-| Source | Provides | Feeds |
-|--------|----------|-------|
-| `piterfm/fifa-world-cup` (Kaggle) | Every WC match 1930–2022. Base rates by team, stage, confederation. | Historical stats |
-| `harrachimustapha/fifa-world-cup-team-dataset` (Kaggle) | Team features 2002–2026. FIFA rankings, squad value, avg age. | Historical stats |
-| `areezvisram12/wc2026-match-data` (Kaggle, SQLite) | 2026 schedule, venues, groups, confirmed squads. | Orchestrator |
-| StatsBomb Open Data (GitHub, free) | Event-level xG, passes, pressures. WC 2018 + 2022. Tactical fingerprints. | Tactical analyst |
+| MCP Server | npm package | Provides |
+|---|---|---|
+| wc26-mcp | `wc26-mcp` | WC 2026 fixtures, team profiles, form, injuries, standings, H2H, news |
+| WC History MCP | `@zafronix/wc-mcp` | Historical WC data 1930–2026: matches, rosters, brackets, standings |
 
-### Live — fetch at query time via MCP
-
-Live data is accessed through MCP (Model Context Protocol) servers. This lets the Anthropic SDK call tools directly against live sources — no custom HTTP client code, no scraper maintenance, structured responses out of the box.
-
-| MCP Server | Provides | Feeds |
-|------------|----------|-------|
-| **Transfermarkt MCP** | Injuries, suspensions, squad depth, market values, transfer news. Real-time squad fitness data. | Squad fitness agent |
-| **wc26-mcp** | WC 2026 schedule, group standings, match venues, confirmed squads, results as they happen. | Tournament context agent · Orchestrator |
-| `football-data.org` (REST, API key) | Last 5 results, fixtures, squad lists. Fallback if MCP unavailable. | Form agent |
-
-> MCP servers are registered with the Anthropic client at startup. Agent prompts call MCP tools the same way they call any other tool — the orchestrator passes the relevant tool list per specialist based on `data_slice_id`.
+Both servers are invoked via `npx -y <package>` over MCP protocol (JSON-RPC over stdin). Results are cached in-process for 1 hour. No static corpus. No embedding step.
 
 ### Validation only — fetched after vote is sealed
 
 | Source | Provides | Role |
-|--------|----------|------|
-| Polymarket Gamma API (no auth) | Market implied P, 24h volume, open interest. | Edge detector |
-| Polymarket CLOB API (wallet auth, Polygon USDC) | Order placement if spread > threshold. Limit orders only. | Bet executor |
-
-### RAG implementation — no vector DB needed
-
-Embed the static corpus (~500 docs) with Voyage-3 tonight. Save as numpy array + metadata list. At query time: embed the match query, cosine similarity, return top 10 chunks. Live API responses go directly into specialist prompts as structured JSON. Polymarket is never queried during this phase.
+|---|---|---|
+| Polymarket Gamma API (no auth) | Match market implied P (when available) | Primary edge detector |
+| Polymarket winner markets | Tournament winner P per team → derived H2H | Fallback (pre-tournament) |
+| Polymarket CLOB API (wallet auth) | Order placement if spread > 8pp | Bet executor (stubbed) |
 
 ---
 
 ## 4. Tech Stack
 
 | Component | Choice |
-|-----------|--------|
-| LLM orchestration | Anthropic Python SDK — Claude Sonnet 4 (orchestrator + specialists), Haiku 4.5 (critic) |
-| Structured output | Anthropic tool use — vote schema as tool, `tool_choice` forced |
-| Embeddings | Voyage-3 via `voyageai` Python package |
-| GPU infrastructure | CoreWeave — low-latency parallel inference |
+|---|---|
+| Python | 3.11 |
+| LLM inference | W&B Inference (CoreWeave GPU) — OpenAI-compatible endpoint |
+| Model | `OpenPipe/Qwen3-14B-Instruct` (all roles) |
+| Agent orchestration | `asyncio.gather` (round 1) + LangGraph Swarm (round 2 Delphi) |
+| MCP integration | LangChain tools wrapping subprocess MCP calls |
+| Observability | W&B Weave — `@weave.op()` on all agent functions |
+| Live data | `wc26-mcp` + `@zafronix/wc-mcp` via npx |
 | Backend | FastAPI + WebSockets |
-| Visualization | p5.js Boids (OpenProcessing starter) |
-| Observability | W&B Weave — every Anthropic API call traced |
-| Live data | Transfermarkt MCP + wc26-mcp (Model Context Protocol servers) |
-| Data fetching | httpx (async, fallback), cached for demo duration |
-| Betting | `py-clob-client` (Polymarket Python SDK), Polygon wallet |
-| Deployment | CoreWeave VM + ngrok |
+| Frontend | Vanilla JS + p5.js |
+| Visualization | p5.js Boids — 25 fish per specialist school, centroid speech bubbles |
+| Polymarket | Gamma API (read) + winner markets (H2H fallback) + CLOB (stubbed) |
+
+### Python dependencies
+
+```
+fastapi, uvicorn, websockets, httpx, pydantic, pydantic-settings
+wandb, weave
+langgraph-swarm, langgraph, langchain-openai, langchain-core
+openai (pointed at W&B Inference endpoint)
+python-dotenv
+```
 
 ---
 
 ## 5. Context Engineering
 
-Non-negotiable principles:
-
-- **Narrow role definition** — each prompt states explicitly what to analyze and what *not* to consider. Scope enforcement prevents any agent from solving the whole problem.
-- **Data slice injection** — only the relevant data is injected per agent. No agent sees the full dataset. Clean structured JSON only — no raw HTML or unformatted API responses.
-- **Independence instruction** — every prompt includes: *"Form your own independent view based solely on your assigned data. Do not speculate about what other analysts might conclude."*
+- **Narrow role + focus** — each specialist prompt defines its role and focus explicitly. Scope enforcement prevents any agent from solving the whole problem.
+- **MCP tools as the data layer** — specialists fetch their own data via bound LangChain tools. No pre-injected blobs.
+- **Independence instruction** — every prompt: *"Form your own independent view based solely on your assigned data. Do not speculate about what other analysts might conclude."*
 - **Market blindness** — no agent prompt references Polymarket, betting odds, or market-implied probability. Enforced at prompt construction level.
-- **Sparse Delphi signal** — agents see only the aggregate P distribution in the Delphi round, not reasoning chains. Prevents anchoring, preserves pool diversity.
-- **Output schema enforcement** — tool use forces structured output. Reasoning is a field within the schema, not the response format.
+- **Sparse Delphi signal** — agents see only the aggregate P distribution in round 2 (no reasoning chains). Prevents anchoring, preserves pool diversity.
+- **Focus field** — each specialist definition carries a short `focus` descriptor shown in the fish speech bubble and the final aggregate table.
 
 ---
 
-## 6. Build Order
+## 6. UI — What Was Built
 
-> Total: ~8 hours. Step 1 is a hard gate — do not proceed until it passes.
+### Match Picker
+- 12 WC 2026 group tiles (6×2 grid), loaded live from wc26-mcp at startup
+- Each tile: group letter, 4 teams with flag emojis, 6 scheduled match rows
+- Click any match row to select
+- Knockout bracket collapsible below
 
-1. **(30 min)** Verify CoreWeave access. Successful inference call to Claude Sonnet 4 and Haiku 4.5.
-2. **(30 min)** Embed static Kaggle corpus with Voyage-3. Confirm cosine similarity returns sensible chunks.
-3. **(1 hr)** Build meta-agent spawner. Hardcode fallback specialist list for test match.
-4. **(1 hr)** Write all 6 specialist prompts. Test each individually. Confirm tool use output.
-5. **(1 hr)** Build aggregation + Delphi layer. End-to-end: match in → parallel agents → weighted P out.
-6. **(1 hr)** Build holistic critic. Confirm it produces a system-level critique, not per-agent challenges.
+### Question Picker
+Five question cards (always visible, above the bracket):
 
-> **🥗 LUNCH CHECKPOINT** — working deliberation pipeline with holistic critique. Minimum viable demo.
+| Card | Prompt |
+|---|---|
+| Who wins? | Win probability + confidence |
+| Predict the final score | Goals per team + confidence |
+| Who scores first? | First goal probability |
+| Both teams to score? | BTTS probability |
+| Over 2.5 goals? | Total goals market |
 
-7. **(30 min)** Wire W&B Weave tracing. Confirm traces appear in dashboard.
-8. **(30 min)** Connect Polymarket Gamma API post-vote. Compute spread. Confirm edge detection.
-9. **(30 min)** Connect CLOB API. Place one test limit order to confirm wallet + auth.
-10. **(1 hr)** Build p5.js Boids visualization. Get it running client-side with hardcoded params.
-11. **(30 min)** Add FastAPI WebSocket. Connect visualization to backend.
-12. **(30 min)** Rehearse demo script twice with a fresh match. Time it.
+### Fish Visualization (p5.js Boids)
+- **25 fish per specialist school** — 200 fish total for 8 agents
+- Each school has its own colour (fixed palette, no purple)
+- Per-fish randomisation: speed (3.5–6.0), turn rate (0.12–0.24), hue drift (±12°), size (0.7×–1.4×), sinusoidal wander offset
+- One speech bubble per school at group centroid: role name + focus descriptor
+- Phase transitions driven by WebSocket events:
+
+| Phase | Fish behaviour |
+|---|---|
+| idle | Slow drift |
+| deliberating | High chaos, fragmented schools |
+| critic | Turbulence spike |
+| delphi | Partial alignment emerging |
+| consensus | Full lock, schools converge |
+
+### Consensus Tile (result after pipeline completes)
+
+```
+PREDICTED SCORE
+South Africa  1–2  South Korea
+─────────────────────────────────────────
+OUR PREDICTION      VS      POLYMARKET (H2H)
+    37.7%                       16.7%
+P(S.Africa wins)            market implied   │ EDGE
+                                             │ 21.0pp
+                                             │ bet placed
+─────────────────────────────────────────────────────
+Plain English explanation + 80% CI + dissent count
+```
+
+Hover tooltip on Edge badge explains: `Edge = |SwarmCast − Polymarket|`, threshold, action taken.
+
+### Aggregate Table (appears at consensus)
+Agent | Round 1 | Round 2 | Key signal | Reasoning
+— with Focus shown under each agent name in the Agent column, and delta (±pp) between rounds.
 
 ---
 
-## 7. Risks and Mitigations
-
-| Risk | Mitigation |
-|------|------------|
-| CoreWeave latency too high | Pre-cache one full run on demo match. Show live run; cut to cache if it stalls. |
-| Holistic critic too agreeable | Strengthen system prompt: *"If you cannot find a gap, look harder. A panel that agrees on everything is always missing something."* |
-| Polymarket has no liquid WC match market | Group stage starts June 11. Fall back to pre-tournament winner markets ($517M volume, live today). |
-| CLOB API wallet/auth fails | Decouple bet execution from demo narrative. Show edge detection + would-be order. Spread calculation is the key moment. |
-| Fish visualization not ready | Fallback: live probability bar chart showing agent votes updating in real time. Build this first. |
-| Critic loop produces no change | Floor: critic always recommends spawning contrarian if none present. Even one spawn makes self-improvement legible. |
-| WiFi unreliable | Mobile hotspot. Run backend locally with ngrok tunnel. |
-
----
-
-## 8. Demo Script — 3 Minutes
+## 7. Demo Script — 3 Minutes
 
 **0:00 — Hook (15s)**
-*"Polymarket has a live market on tonight's World Cup match. The crowd says 64%. We disagree. Let me show you why."*
+*"Polymarket gives South Africa a 17% chance of beating South Korea. Our swarm disagrees. Let me show you why."*
 
-**0:15 — Spawn (20s)**
-Show meta-agent spawning specialists. *"No human told it to create a squad fitness agent. It figured out which experts it needs from the match alone."*
+**0:15 — Question + Match (15s)**
+Select "Who wins?" on the bracket. Hit Run SwarmCast.
 
-**0:35 — Deliberation (30s)**
-Fish appear, swimming chaotically. *"Each fish is an agent forming an independent opinion. They have never seen the market price. Watch them disagree."*
+**0:30 — Deliberation (30s)**
+200 fish appear — 8 coloured schools, each labeled with its specialist and focus. *"Each school is an expert forming an independent opinion. They have never seen the Polymarket price."*
 
-**1:05 — Holistic critic fires (25s)**
-Show critic output. *"Now Claude Haiku reads the full panel as one picture. Not to argue with each fish — to find what the whole school is blind to. It flagged that no agent covered tournament context: both teams need to win, not draw. That changes everything."*
+**1:00 — Critic fires (25s)**
+*"The critic reads the full panel as one picture. It found a coverage gap — no agent assessed set-piece vulnerability. The orchestrator spawned a new agent."*
 
-**1:30 — Delphi + consensus (20s)**
-Fish begin aligning. *"After the Delphi round, the swarm says 71%. The market says 64%. The spread is 7 points."*
+**1:25 — Delphi + LangGraph (20s)**
+Schools begin aligning. *"LangGraph runs each specialist in its own thread for round 2. The contrarian held firm. One agent moved 4 points."*
 
-**1:50 — Edge + bet (20s)**
-*"Our threshold is 8%. We're at 7 — no bet. But if that contrarian agent had held firm, we'd be placing an order right now on Polygon."* Show would-be CLOB order.
+**1:45 — Consensus (20s)**
+*"SwarmCast says 37.7%. Polymarket says 16.7%. The spread is 21 points — above our 8-point threshold. SwarmCast places a limit order."*
 
-**2:10 — Weave + Anthropic (20s)**
-Show Weave dashboard. *"Every Claude call is traced — Sonnet for the specialists, Haiku for the critic. When the match resolves, these traces get ground truth labels. That is the retraining dataset. CoreWeave announced this loop two days ago. We built the proof of concept today, on Anthropic."*
+**2:05 — Aggregate table (25s)**
+*"Every agent, both rounds, their reasoning, the delta. The psychological analyst was the key signal — South Korea's big-game record is significantly stronger."*
 
 **2:30 — Close (30s)**
-Fish lock into final formation. *"No central coordinator told these agents what to conclude. The probability came from specialization, isolation, and a critic that looked at the whole picture. The fish are not decorative — they are the system. Check back in June."*
+*"No central coordinator told these agents what to conclude. The probability came from specialization, isolation, and iterative self-improvement. The fish are not decorative — they are the system. Check back in June."*
 
 ---
 
-## 9. Pitch Deck — Team Recruitment
+## 8. Risks and Mitigations
 
-### Slide 1 — The Hook
-
-> **The World Cup starts in 12 days.**
-> Polymarket has live match markets.
-> **What if an agent swarm could find the edge?**
-
-*Say this out loud. Pause after "find the edge?" Let it land.*
-
----
-
-### Slide 2 — What SwarmCast Does
-
-- Specialist agents deliberate on a World Cup match in parallel — tactical, historical, form, fitness, contrarian
-- A holistic critic (Claude Haiku 4.5) reads the full panel as one picture — not to antagonize each agent, but to find what the collective is blind to about this match
-- The orchestrator acts: spawns agents for coverage gaps, rewrites prompts for groupthink, broadcasts gap signals before the Delphi round
-- Delphi consensus vote → calibrated probability with CI and minority dissent
-- Polymarket price fetched for the **first time AFTER** the vote is sealed
-- If spread > 8%: SwarmCast places a limit order automatically on Polygon
-- Every Claude call traced in W&B Weave → ground truth on resolution → v2 training data
-
-> *The swarm never sees the market price until it has already voted. **That is what makes the edge real.***
-
----
-
-### Slide 3 — Why Now
-
-CoreWeave announced their agentic AI platform **two days ago** — a closed loop between inference, observability, and retraining using W&B Weave and Serverless RL.
-
-SwarmCast instruments that exact loop from day one. When markets resolve, Weave traces become training samples. V2 fine-tunes specialists on what reasoning patterns predicted correctly.
-
-We are not demoing a concept. We are building the proof of concept for their platform story — **the day the World Cup starts.**
-
-| 20 active WC markets today | $517M winner market volume | 3 models, distinct roles |
-|---|---|---|
-
----
-
-### Slide 4 — The Stack
-
-| Component | Detail |
-|-----------|--------|
-| Anthropic SDK | Claude Sonnet 4 (specialists + orchestrator) · Haiku 4.5 (critic) · Voyage-3 (embeddings) |
-| W&B Weave | Every agent call traced · bet events logged · ground truth labeled on resolution |
-| Polymarket APIs | Gamma API (read-only) + CLOB API (order placement, wallet auth) |
-| Football data | Kaggle WC datasets (static) + football-data.org + Transfermarkt (live) |
-| Python + asyncio | `asyncio.gather` fires all specialists in parallel · httpx for data fetching |
-| FastAPI + WebSockets | Backend API + real-time agent state push |
-| p5.js Boids | Fish visualization · chaos → alignment → lock |
-
----
-
-### Slide 5 — The Ask
-
-> **Looking for 2–3 people. 8 hours. Three tracks.**
-
-| Python / async | Frontend / p5.js | LLM / prompts |
-|---|---|---|
-| Agent orchestration, data fetch, aggregation, CLOB integration | Boids visualization, WebSocket integration, FastAPI frontend | Specialist prompts, critic design, tool use schemas, Weave tracing |
-
-**Minimum viable demo by lunch. Bet placed by end of day.**
+| Risk | Mitigation |
+|---|---|
+| W&B Inference latency | Pre-cache one full run on demo match |
+| Holistic critic too agreeable | System prompt forces gap-finding; floor: always spawn contrarian if absent |
+| No Polymarket match market yet | Winner-odds H2H always produces a number (labeled "Polymarket (H2H)") |
+| CLOB API wallet/auth fails | Edge detection is the key demo moment; bet placement is decoupled |
+| WiFi unreliable | Mobile hotspot; backend local + ngrok |
+| MCP subprocess too slow | 1h cache; pre-warm on server startup |
 
 ---
 
 ## The One-Liner
 
-*SwarmCast: a self-improving agent swarm built on Claude that deliberates on World Cup matches, bets against the market when it disagrees, and gets smarter every time a match resolves.*
+*SwarmCast: a self-improving multi-agent swarm built on CoreWeave that deliberates on World Cup matches, compares its prediction to Polymarket, bets when it disagrees, and gets smarter every time a match resolves.*
