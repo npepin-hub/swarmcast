@@ -43,9 +43,10 @@ function selectMatch(row, match, groupId) {
   };
   window.selectedMatch = selectedMatch;
 
-  // Update run bar
-  document.getElementById("selected-match-label").textContent = selectedMatch.label;
-  document.getElementById("run-bar").classList.remove("hidden");
+  // Update run bar match label and notify ws.js
+  const matchLabel = document.getElementById("selected-match-label");
+  if (matchLabel) matchLabel.textContent = selectedMatch.label;
+  window.onMatchSelected?.();
 }
 
 // ── Group tiles ───────────────────────────────────────────────────────────────

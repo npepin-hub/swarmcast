@@ -23,35 +23,61 @@
         If SwarmCast disagrees with Polymarket by 8+ points, it places a bet.
       </p>
       <ol class="hero-steps">
-        <li>Pick a match below</li>
         <li>Choose your question</li>
+        <li>Pick a match</li>
         <li>Watch the fish deliberate</li>
       </ol>
     </section>
 
-    <!-- ── Bracket ────────────────────────────────────────────────────────── -->
+    <!-- ── Step 1: Question picker ────────────────────────────────────────── -->
+    <section id="question-section">
+      <h2 class="section-label">Step 1 — What do you want to know?</h2>
+      <div id="question-cards">
+        <button class="q-card active" data-q="who_wins">
+          <span class="q-icon">🏆</span>
+          <span class="q-label">Who wins?</span>
+          <span class="q-desc">Win probability for each team</span>
+        </button>
+        <button class="q-card" data-q="final_score">
+          <span class="q-icon">⚽</span>
+          <span class="q-label">Predict the final score</span>
+          <span class="q-desc">Goals per team + confidence</span>
+        </button>
+        <button class="q-card" data-q="first_scorer">
+          <span class="q-icon">🎯</span>
+          <span class="q-label">Who scores first?</span>
+          <span class="q-desc">First goal probability</span>
+        </button>
+        <button class="q-card" data-q="both_score">
+          <span class="q-icon">🔄</span>
+          <span class="q-label">Both teams to score?</span>
+          <span class="q-desc">BTTS probability</span>
+        </button>
+        <button class="q-card" data-q="over_goals">
+          <span class="q-icon">📈</span>
+          <span class="q-label">Over 2.5 goals?</span>
+          <span class="q-desc">Total goals market</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- ── Step 2: Match picker (bracket) ────────────────────────────────── -->
     <section id="bracket-section">
-      <h2 class="section-label">Group Stage — pick a match</h2>
+      <h2 class="section-label">Step 2 — Pick a match</h2>
       <div id="group-grid"></div>
 
       <h2 class="section-label knockout-label">Knockout Stage</h2>
       <div id="knockout-bracket"></div>
     </section>
 
-    <!-- ── Sticky run bar ─────────────────────────────────────────────────── -->
+    <!-- ── Sticky run bar (appears when match selected) ───────────────────── -->
     <div id="run-bar" class="hidden">
-      <div class="run-bar-match">
-        <span class="run-bar-label">Selected</span>
-        <span id="selected-match-label"></span>
+      <div class="run-bar-summary">
+        <span class="run-bar-q" id="run-bar-question-label"></span>
+        <span class="run-bar-sep">·</span>
+        <span class="run-bar-m" id="selected-match-label"></span>
       </div>
-      <div class="run-bar-controls">
-        <select id="question-select">
-          <option value="who_wins">Who wins?</option>
-          <option value="final_score" selected>Predict the final score</option>
-          <option value="first_scorer">Who scores first?</option>
-          <option value="both_score">Both teams to score?</option>
-          <option value="over_goals">Over 2.5 goals?</option>
-        </select>
+      <div class="run-bar-actions">
         <input id="market-id" type="text" placeholder="Polymarket ID (optional)" />
         <button id="run-btn">Run SwarmCast</button>
       </div>

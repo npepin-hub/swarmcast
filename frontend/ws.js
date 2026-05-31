@@ -154,14 +154,45 @@ function handleEvent(msg) {
   }
 }
 
+// ── Question card selection ───────────────────────────────────────────────────
+
+let selectedQuestion = "who_wins";
+
+const QUESTION_LABELS = {
+  who_wins:     "Who wins?",
+  final_score:  "Predict the final score",
+  first_scorer: "Who scores first?",
+  both_score:   "Both teams to score?",
+  over_goals:   "Over 2.5 goals?",
+};
+
+document.querySelectorAll(".q-card").forEach(card => {
+  card.addEventListener("click", () => {
+    document.querySelectorAll(".q-card").forEach(c => c.classList.remove("active"));
+    card.classList.add("active");
+    selectedQuestion = card.dataset.q;
+    updateRunBar();
+  });
+});
+
+function updateRunBar() {
+  const match = window.selectedMatch;
+  if (!match) return;
+  const qlabel = document.getElementById("run-bar-question-label");
+  if (qlabel) qlabel.textContent = QUESTION_LABELS[selectedQuestion] || selectedQuestion;
+  document.getElementById("run-bar").classList.remove("hidden");
+}
+
+// Expose so bracket.js can call it when a match is selected
+window.onMatchSelected = updateRunBar;
+
 // ── Run button ────────────────────────────────────────────────────────────────
 
 document.getElementById("run-btn").addEventListener("click", async () => {
   const match = window.selectedMatch;
   if (!match) return;
 
-  const questionKey = document.getElementById("question-select").value;
-  const tmpl = QUESTION_TEMPLATES[questionKey] ?? QUESTION_TEMPLATES.final_score;
+  const tmpl = QUESTION_TEMPLATES[selectedQuestion] ?? QUESTION_TEMPLATES.who_wins;
   const matchQuery = tmpl(match.team_a, match.team_b);
 
   // Reset output
