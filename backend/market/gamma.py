@@ -2,6 +2,8 @@
 Only called AFTER the swarm vote is sealed. Never touched during deliberation.
 """
 from __future__ import annotations
+import json as _json
+from concurrent.futures import ThreadPoolExecutor
 import httpx
 from ..schemas import MarketSnapshot
 
@@ -41,8 +43,6 @@ def get_market_snapshot(market_id: str) -> MarketSnapshot:
         r.raise_for_status()
         data = r.json()
 
-    # Gamma API returns outcomePrices as a JSON-encoded list e.g. '["0.64", "0.36"]'
-    import json as _json
     prices = _json.loads(data.get("outcomePrices", '["0.5", "0.5"]'))
     market_p = float(prices[0])   # index 0 = "Yes" / team A wins
 
@@ -52,6 +52,77 @@ def get_market_snapshot(market_id: str) -> MarketSnapshot:
         volume_24h=data.get("volume24hr"),
         open_interest=data.get("openInterest"),
     )
+
+
+# Static map — Polymarket WC2026 winner market IDs (one per qualified team)
+_WC26_WINNER_IDS: dict[str, str] = {
+    "spain": "558934", "england": "558935", "france": "558936",
+    "brazil": "558937", "argentina": "558938", "germany": "558939",
+    "portugal": "558940", "netherlands": "558941", "holland": "558941",
+    "italy": "558942", "usa": "558943", "united states": "558943",
+    "uruguay": "558944", "mexico": "558945", "belgium": "558946",
+    "colombia": "558947", "peru": "558948", "japan": "558949",
+    "norway": "558951", "canada": "558952", "tunisia": "558954",
+    "ecuador": "558955", "paraguay": "558956", "new zealand": "558957",
+    "australia": "558958", "iran": "558959", "uzbekistan": "558960",
+    "south korea": "558961", "korea": "558961", "jordan": "558962",
+    "morocco": "558963", "south africa": "558964", "senegal": "558965",
+    "ivory coast": "558966", "cote d'ivoire": "558966", "ghana": "558967",
+    "egypt": "558968", "algeria": "558969", "cape verde": "558970",
+    "qatar": "558971", "saudi arabia": "558972", "scotland": "558973",
+    "switzerland": "558974", "austria": "558975", "croatia": "558976",
+    "haiti": "558977", "curacao": "558978", "panama": "558979",
+    "sweden": "558980", "congo dr": "558981", "iraq": "558982",
+    "bosnia": "558983", "bosnia-herzegovina": "558983", "czechia": "558984",
+    "czech republic": "558984", "turkiye": "558985", "turkey": "558985",
+}
+
+
+def find_winner_market(team: str) -> str | None:
+    """Look up the WC2026 tournament winner market ID for a team."""
+    return _WC26_WINNER_IDS.get(team.lower().strip())
+
+
+def fetch_winner_odds(team_a: str, team_b: str) -> dict[str, MarketSnapshot]:
+    """Return tournament winner market snapshots for both teams (whichever exist)."""
+    result = {}
+    for team in [team_a, team_b]:
+        mid = find_winner_market(team)
+        if mid:
+            result[team] = get_market_snapshot(mid)
+    return result
+
+
+def fetch_top_wc_favorites(n: int = 5) -> list[dict]:
+    """Return the top-n WC2026 winner markets by current probability (parallel fetch)."""
+    # deduplicate while preserving insertion order; skip "Any Other Team" market
+    unique_ids = [mid for mid in dict.fromkeys(_WC26_WINNER_IDS.values())
+                  if mid != "558953"]
+
+    def _fetch(mid: str) -> dict | None:
+        try:
+            with httpx.Client(timeout=8) as c:
+                r = c.get(f"{_GAMMA_BASE}/markets/{mid}")
+                if r.status_code != 200:
+                    return None
+                d = r.json()
+            prices = _json.loads(d.get("outcomePrices", '["0","1"]'))
+            p = float(prices[0])
+            if p <= 0:
+                return None
+            return {
+                "team": d["question"].split("Will ")[1].split(" win")[0],
+                "probability": p,
+                "market_id": mid,
+            }
+        except Exception:
+            return None
+
+    with ThreadPoolExecutor(max_workers=20) as pool:
+        results = [r for r in pool.map(_fetch, unique_ids) if r is not None]
+
+    results.sort(key=lambda x: x["probability"], reverse=True)
+    return results[:n]
 
 
 def find_wc_market(team_a: str, team_b: str) -> str | None:

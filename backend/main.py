@@ -11,10 +11,11 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from .agents.pipeline import run_deliberation
+from .agents.delphi import synthesize_verdict
 from .config import settings
 from .data.wc26 import build_context_bundle, get_groups_data
 from .market.edge import detect_and_act
-from .market.gamma import find_wc_market
+from .market.gamma import find_wc_market, fetch_winner_odds, fetch_top_wc_favorites
 from .observability import weave_tracer
 from .schemas import ForecastResult, WSEventType, WSMessage
 
@@ -102,6 +103,33 @@ async def run_forecast_pipeline(req: ForecastRequest) -> ForecastResult:
         edge_detected=False,
         bet_receipt=None,
     )
+
+    # Verdict — narrative synthesis of round-2 votes
+    verdict = await synthesize_verdict(
+        req.match_query, result.consensus, result.consensus.all_votes,
+        req.team_a, req.team_b,
+    )
+    await emit(WSEventType.verdict, {"text": verdict})
+
+    # Polymarket — tournament winner odds + derived H2H + top favorites
+    winner_odds = await asyncio.to_thread(fetch_winner_odds, req.team_a, req.team_b)
+    top_favorites = await asyncio.to_thread(fetch_top_wc_favorites, 5)
+    if winner_odds:
+        odds_a = winner_odds.get(req.team_a)
+        odds_b = winner_odds.get(req.team_b)
+        h2h = None
+        if odds_a and odds_b:
+            total = odds_a.market_probability + odds_b.market_probability
+            if total > 0:
+                h2h = {
+                    req.team_a: round(odds_a.market_probability / total, 4),
+                    req.team_b: round(odds_b.market_probability / total, 4),
+                }
+        await emit(WSEventType.winner_odds, {
+            "teams":     {team: snap.model_dump() for team, snap in winner_odds.items()},
+            "h2h":       h2h,
+            "favorites": top_favorites,
+        })
 
     snapshot, spread, edge_detected, bet_receipt = await asyncio.to_thread(
         run_market_validation,

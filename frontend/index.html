@@ -93,9 +93,11 @@
       </div>
     </section>
 
-    <!-- ── Consensus + market  (directly below fish) ──────────────────────── -->
+    <!-- ── Consensus + market ────────────────────────────────────────────── -->
     <section id="result-panel" class="hidden">
       <h2 class="section-label">Consensus</h2>
+
+      <!-- Swarm probability + verdict -->
       <div id="consensus-display">
         <div class="consensus-hero">
           <span id="consensus-score" class="big-number score-line">—</span>
@@ -106,38 +108,43 @@
         <p id="consensus-dissent" class="consensus-dissent hidden"></p>
       </div>
 
-      <div id="market-display" class="hidden">
-        <div class="consensus-hero">
-          <span id="market-p" class="big-number">—</span>
-          <span class="consensus-team">Polymarket</span>
-        </div>
-        <p id="spread-label" class="consensus-plain"></p>
-      </div>
-
-      <div id="edge-display" class="hidden">
-        <div id="edge-badge"></div>
-        <pre id="bet-receipt"></pre>
-      </div>
-
       <!-- Final aggregate table — all agents at a glance -->
       <div id="aggregate-table-wrap" class="hidden">
         <h3 class="section-label" style="margin-top:1.5rem">Final Vote — All Agents</h3>
         <table id="aggregate-table">
           <thead>
             <tr>
-              <th>Agent</th>
-              <th>Round 1</th>
-              <th>Round 2</th>
-              <th>Key signal</th>
-              <th>Reasoning</th>
+              <th>Agent</th><th>Round 1</th><th>Round 2</th>
+              <th>Key signal</th><th>Reasoning</th>
             </tr>
           </thead>
           <tbody id="aggregate-rows"></tbody>
         </table>
       </div>
+
+      <!-- Polymarket — winner odds + H2H bar charts + favorites -->
+      <div id="winner-odds-display" class="hidden">
+        <h3 class="section-label" style="margin-top:1.5rem">Polymarket — Tournament Odds</h3>
+        <div id="winner-odds-rows"></div>
+      </div>
+
+      <!-- Polymarket match market (rare pre-tournament) -->
+      <div id="market-display" class="hidden">
+        <div class="consensus-hero">
+          <span id="market-p" class="big-number">—</span>
+          <span class="consensus-team">Polymarket match market</span>
+        </div>
+        <p id="spread-label" class="consensus-plain"></p>
+      </div>
+
+      <!-- Edge badge + bet receipt -->
+      <div id="edge-display" class="hidden">
+        <div id="edge-badge"></div>
+        <pre id="bet-receipt"></pre>
+      </div>
     </section>
 
-    <!-- ── Live agent cards (detail, appears during deliberation) ─────────── -->
+    <!-- ── Live agent cards ───────────────────────────────────────────────── -->
     <section id="agent-feed" class="hidden">
       <h2 class="section-label">Agent Panel</h2>
       <div id="agent-cards"></div>

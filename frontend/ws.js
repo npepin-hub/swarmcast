@@ -19,6 +19,9 @@ const show = id => document.getElementById(id)?.classList.remove("hidden");
 const hide = id => document.getElementById(id)?.classList.add("hidden");
 const setText = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
 
+let currentTeamA = "";
+let currentTeamB = "";
+
 // ── Role legend ───────────────────────────────────────────────────────────────
 
 function renderLegend(specialists) {
@@ -121,19 +124,13 @@ function renderConsensus(consensus) {
   setText("consensus-score", `${scoreA}–${scoreB}`);
   setText("consensus-p", `${pct}%`);
   setText("consensus-team-label", `predicted score · P(${team} wins)`);
-  setText("consensus-plain",
-    `${nAgents} specialist agents deliberated over 2 rounds. ` +
-    `Consensus score ${scoreA}–${scoreB}. ` +
-    `We are 80% confident the true probability sits between ${lo}% and ${hi}%.`
-  );
+  setText("consensus-plain", "");   // verdict fills this when it arrives
 
   const dissentEl = document.getElementById("consensus-dissent");
-  if (dissent > 0) {
-    dissentEl.textContent = `${dissent} agent${dissent > 1 ? "s" : ""} disagreed strongly — see minority dissent in the panel below.`;
-    dissentEl.classList.remove("hidden");
-  } else {
-    dissentEl.classList.add("hidden");
-  }
+  let ciText = `80% CI [${lo}%, ${hi}%]`;
+  if (dissent > 0) ciText += ` · ${dissent} agent${dissent > 1 ? "s" : ""} dissented`;
+  dissentEl.textContent = ciText;
+  dissentEl.classList.remove("hidden");
 
   renderAggregateTable();
 
@@ -172,6 +169,74 @@ function renderAggregateTable() {
   wrap.classList.remove("hidden");
 }
 
+function renderVerdict(text) {
+  setText("consensus-plain", text);
+}
+
+function oddsBar(p, maxP, color) {
+  const w = Math.max(4, Math.round((p / maxP) * 220));
+  return `<div class="odds-bar-fill" style="width:${w}px;background:${color}"></div>`;
+}
+
+function renderWinnerOdds({ teams, h2h, favorites }) {
+  show("winner-odds-display");
+
+  // H2H split bar — visual face-off
+  let h2hHtml = "";
+  if (h2h) {
+    const [[teamA, pA], [teamB, pB]] = Object.entries(h2h).sort(([,a],[,b]) => b - a);
+    h2hHtml = `
+      <div class="odds-subsection">
+        <div class="odds-label">Market-implied match odds</div>
+        <div class="h2h-split">
+          <span class="h2h-team">${teamA}</span>
+          <div class="h2h-track">
+            <div class="h2h-bar-a" style="width:${(pA*100).toFixed(1)}%"></div>
+            <div class="h2h-bar-b" style="width:${(pB*100).toFixed(1)}%"></div>
+          </div>
+          <span class="h2h-team right">${teamB}</span>
+        </div>
+        <div class="h2h-pcts">
+          <span>${(pA*100).toFixed(1)}%</span><span>${(pB*100).toFixed(1)}%</span>
+        </div>
+        <div class="odds-note">Derived by normalising tournament winner odds</div>
+      </div>`;
+  }
+
+  // Tournament winner odds — horizontal bars
+  const maxTeamP = Math.max(...Object.values(teams).map(s => s.market_probability), 0.01);
+  const teamHtml = `
+    <div class="odds-subsection">
+      <div class="odds-label">Tournament winner odds</div>
+      ${Object.entries(teams).map(([team, snap]) => {
+        const p = snap.market_probability;
+        const vol = snap.volume_24h ? `$${Number(snap.volume_24h).toLocaleString("en",{maximumFractionDigits:0})}` : "";
+        return `<div class="odds-bar-row">
+          <span class="odds-bar-label">${team}</span>
+          <div class="odds-bar-track">${oddsBar(p, maxTeamP, "var(--accent)")}</div>
+          <span class="odds-bar-val">${(p*100).toFixed(1)}%</span>
+          <span class="odds-bar-vol">${vol}</span>
+        </div>`;
+      }).join("")}
+    </div>`;
+
+  // Top WC favorites — green bars
+  const favHtml = favorites?.length ? (() => {
+    const maxP = favorites[0].probability;
+    return `<div class="odds-subsection">
+      <div class="odds-label">WC2026 top favorites</div>
+      ${favorites.map((f, i) => `
+        <div class="odds-bar-row">
+          <span class="odds-bar-label"><span class="fav-rank">${i+1}</span>${f.team}</span>
+          <div class="odds-bar-track">${oddsBar(f.probability, maxP, "var(--green)")}</div>
+          <span class="odds-bar-val">${(f.probability*100).toFixed(1)}%</span>
+        </div>`).join("")}
+    </div>`;
+  })() : "";
+
+  document.getElementById("winner-odds-rows").innerHTML = h2hHtml + teamHtml + favHtml;
+}
+
 function renderMarket(snapshot, spread) {
   show("market-display");
   const mPct     = (snapshot.market_probability * 100).toFixed(1);
@@ -208,6 +273,7 @@ function handleEvent(msg) {
       break;
     case "agent_vote":
       addAgentCard(msg.payload);
+      window.updateBoidVote?.(msg.payload.role, msg.payload.probability);
       break;
     case "critic_fired":
       window.setSwarmPhase?.("critic");
@@ -216,10 +282,18 @@ function handleEvent(msg) {
     case "delphi_round":
       window.setSwarmPhase?.("delphi");
       addAgentCard(msg.payload);
+      window.updateBoidVote?.(msg.payload.role, msg.payload.probability);
       break;
     case "consensus":
       window.setSwarmPhase?.("consensus");
+      window.lockConsensusColor?.(msg.payload.probability);
       renderConsensus(msg.payload);
+      break;
+    case "verdict":
+      renderVerdict(msg.payload.text);
+      break;
+    case "winner_odds":
+      renderWinnerOdds(msg.payload);
       break;
     case "market_check":
       if (msg.payload.snapshot) renderMarket(msg.payload.snapshot, msg.payload.spread);
@@ -279,13 +353,17 @@ document.getElementById("run-btn").addEventListener("click", async () => {
   document.getElementById("bars").innerHTML = "";
   document.getElementById("role-legend").innerHTML = "";
   Object.keys(barState).forEach(k => delete barState[k]);
-  ["critic-panel", "result-panel", "market-display", "edge-display"].forEach(hide);
+  ["critic-panel", "result-panel", "winner-odds-display",
+   "market-display", "edge-display"].forEach(hide);
   Object.keys(votesByRole).forEach(k => delete votesByRole[k]);
   const aggWrap = document.getElementById("aggregate-table-wrap");
   if (aggWrap) aggWrap.classList.add("hidden");
   show("viz-panel");
   show("agent-feed");
+  window.resetBoids?.();
   window.setSwarmPhase?.("deliberating");
+  currentTeamA = match.team_a;
+  currentTeamB = match.team_b;
   document.getElementById("viz-panel").scrollIntoView({ behavior: "smooth", block: "start" });
 
   const body = {
