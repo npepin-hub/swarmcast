@@ -293,7 +293,6 @@ function renderMarket(snapshot, spread) {
 
   // Inline comparison
   setText("market-p-inline", `${mPct}%`);
-  show("polymarket-col");
 
   const badge   = document.getElementById("spread-badge");
   const verdict = document.getElementById("edge-verdict");
