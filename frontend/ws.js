@@ -50,7 +50,8 @@ function teamAName() {
   return window.selectedMatch?.team_a || "Team A";
 }
 
-const votesByRole = {};   // role → { r1: AgentVote, r2: AgentVote }
+const votesByRole = {};    // role → { r1: AgentVote, r2: AgentVote }
+const focusByRole = {};    // role → focus string from specialist definition
 
 function addAgentCard(vote) {
   if (!votesByRole[vote.role]) votesByRole[vote.role] = {};
@@ -170,8 +171,10 @@ function renderAggregateTable() {
     const fmt = (v) => v
       ? `${v.team_a_goals}–${v.team_b_goals} · ${(v.probability * 100).toFixed(1)}%`
       : "—";
+    const focus = focusByRole[role] || "";
     return `<tr>
       <td style="color:${color};font-weight:600">${role.replace(/_/g, " ")}</td>
+      <td class="agg-focus">${focus}</td>
       <td>${fmt(r1)}</td>
       <td>${fmt(r2)}
         <span class="delta ${parseFloat(delta) >= 0 ? "up" : "dn"}">${deltaStr}</span>
@@ -285,6 +288,7 @@ function handleEvent(msg) {
     case "spawning":
       window.assignRoles?.(msg.payload);
       renderLegend(msg.payload);
+      msg.payload.forEach(s => { if (s.focus) focusByRole[s.role] = s.focus; });
       window.setSwarmPhase?.("deliberating");
       break;
     case "agent_vote":
@@ -372,6 +376,7 @@ document.getElementById("run-btn").addEventListener("click", async () => {
   ["critic-panel", "result-panel", "winner-odds-display",
    "market-display", "edge-display"].forEach(hide);
   Object.keys(votesByRole).forEach(k => delete votesByRole[k]);
+  Object.keys(focusByRole).forEach(k => delete focusByRole[k]);
   const aggWrap = document.getElementById("aggregate-table-wrap");
   if (aggWrap) aggWrap.classList.add("hidden");
   show("viz-panel");

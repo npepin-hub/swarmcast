@@ -564,6 +564,7 @@ pre#bet-receipt {
 #aggregate-table tr:last-child td { border-bottom: none; }
 #aggregate-table tr:hover td { background: rgba(255,255,255,0.02); }
 
+.agg-focus    { color: var(--muted); font-size: 0.72rem; white-space: nowrap; }
 .agg-signal   { color: var(--muted); max-width: 180px; }
 .agg-reasoning { color: var(--muted); max-width: 340px; line-height: 1.5; }
 
