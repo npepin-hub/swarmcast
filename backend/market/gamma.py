@@ -4,6 +4,8 @@ Only called AFTER the swarm vote is sealed. Never touched during deliberation.
 from __future__ import annotations
 import json as _json
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
+
 import httpx
 from ..schemas import MarketSnapshot
 
@@ -34,6 +36,65 @@ _FIFA_NAMES = {
     "GRE": "Greece",        "NOR": "Norway",        "FIN": "Finland",
     "RUS": "Russia",        "ISL": "Iceland",       "IRL": "Ireland",
 }
+
+# Reverse: team name (lower) → Polymarket slug code (lower FIFA code)
+_NAME_TO_CODE: dict[str, str] = {v.lower(): k.lower() for k, v in _FIFA_NAMES.items()}
+_NAME_TO_CODE.update({
+    "south africa": "rsa", "korea republic": "kor", "north korea": "prk",
+    "ivory coast": "civ",  "cape verde": "cpv",     "congo dr": "cod",
+    "bosnia-herzegovina": "bih", "bosnia": "bih",   "czechia": "cze",
+    "turkiye": "tur",      "curacao": "cuw",         "united states": "usa",
+})
+
+
+def get_match_markets(team_a: str, team_b: str, match_date: str) -> "MatchMarkets | None":
+    """Fetch 3-way match outcome markets for a WC2026 game.
+    match_date: ISO date string e.g. '2026-06-11'. Returns None if not yet on Polymarket.
+    """
+    from dataclasses import dataclass
+
+    code_a = _NAME_TO_CODE.get(team_a.lower(), team_a[:3].lower())
+    code_b = _NAME_TO_CODE.get(team_b.lower(), team_b[:3].lower())
+    slug = f"fifwc-{code_a}-{code_b}-{match_date}"
+
+    with httpx.Client(timeout=10) as c:
+        r = c.get(f"{_GAMMA_BASE}/events", params={"slug": slug})
+        if r.status_code != 200 or not r.json():
+            return None
+        event = r.json()[0]
+
+    mkt = {m["slug"]: m for m in event.get("markets", [])}
+
+    def _price(s: str) -> float:
+        m = mkt.get(s)
+        if not m:
+            return 0.0
+        return float(_json.loads(m.get("outcomePrices", '["0","1"]'))[0])
+
+    def _mid(s: str) -> str:
+        return mkt.get(s, {}).get("id", "")
+
+    slug_a, slug_d, slug_b = f"{slug}-{code_a}", f"{slug}-draw", f"{slug}-{code_b}"
+    return MatchMarkets(
+        event_slug=slug, team_a=team_a, team_b=team_b,
+        team_a_win=_price(slug_a), draw=_price(slug_d), team_b_win=_price(slug_b),
+        volume_24h=event.get("volume24hr", 0.0),
+        team_a_market_id=_mid(slug_a), draw_market_id=_mid(slug_d), team_b_market_id=_mid(slug_b),
+    )
+
+
+class MatchMarkets:
+    __slots__ = ("event_slug","team_a","team_b","team_a_win","draw","team_b_win",
+                 "volume_24h","team_a_market_id","draw_market_id","team_b_market_id")
+    def __init__(self, event_slug, team_a, team_b, team_a_win, draw, team_b_win,
+                 volume_24h=0.0, team_a_market_id="", draw_market_id="", team_b_market_id=""):
+        self.event_slug=event_slug; self.team_a=team_a; self.team_b=team_b
+        self.team_a_win=team_a_win; self.draw=draw; self.team_b_win=team_b_win
+        self.volume_24h=volume_24h; self.team_a_market_id=team_a_market_id
+        self.draw_market_id=draw_market_id; self.team_b_market_id=team_b_market_id
+
+    def model_dump(self) -> dict:
+        return {s: getattr(self, s) for s in self.__slots__}
 
 
 def get_market_snapshot(market_id: str) -> MarketSnapshot:

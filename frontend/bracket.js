@@ -39,6 +39,7 @@ function selectMatch(row, match, groupId) {
     team_b: teamB,
     group: groupId,
     match_id: match.id,
+    date: match.date || "",   // ISO date e.g. "2026-06-11"
     label: `${homeRaw} vs ${awayRaw}`,
   };
   window.selectedMatch = selectedMatch;

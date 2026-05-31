@@ -96,6 +96,7 @@ class WSEventType(str, Enum):
     delphi_round = "delphi_round"   # round 2 votes incoming
     consensus = "consensus"         # final consensus locked
     verdict = "verdict"             # narrative synthesis of round-2 votes
+    match_markets = "match_markets" # polymarket 3-way match odds (win/draw/lose)
     winner_odds = "winner_odds"     # polymarket tournament winner odds for both teams
     market_check = "market_check"   # polymarket snapshot fetched
     edge_result = "edge_result"     # spread computed, bet decision made

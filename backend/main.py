@@ -15,7 +15,7 @@ from .agents.delphi import synthesize_verdict
 from .config import settings
 from .data.wc26 import build_context_bundle, get_groups_data
 from .market.edge import detect_and_act
-from .market.gamma import find_wc_market, fetch_winner_odds, fetch_top_wc_favorites
+from .market.gamma import find_wc_market, fetch_winner_odds, fetch_top_wc_favorites, get_match_markets
 from .observability import weave_tracer
 from .schemas import ForecastResult, WSEventType, WSMessage
 from .eval.router import router as eval_router
@@ -61,6 +61,7 @@ class ForecastRequest(BaseModel):
     team_a_id: int = 0
     team_b_id: int = 0
     competition_id: str = ""
+    match_date: str = ""            # ISO date e.g. "2026-06-11" — enables 3-way match markets
     polymarket_market_id: str = ""
 
 
@@ -112,6 +113,14 @@ async def run_forecast_pipeline(req: ForecastRequest) -> ForecastResult:
         req.team_a, req.team_b,
     )
     await emit(WSEventType.verdict, {"text": verdict})
+
+    # Polymarket — 3-way match markets (win/draw/lose) if match date is known
+    if req.match_date:
+        match_mkts = await asyncio.to_thread(
+            get_match_markets, req.team_a, req.team_b, req.match_date
+        )
+        if match_mkts:
+            await emit(WSEventType.match_markets, match_mkts.model_dump())
 
     # Polymarket — tournament winner odds + derived H2H + top favorites
     winner_odds = await asyncio.to_thread(fetch_winner_odds, req.team_a, req.team_b)

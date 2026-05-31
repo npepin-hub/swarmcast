@@ -198,6 +198,28 @@ function renderVerdict(text) {
   setText("consensus-plain", text);
 }
 
+function renderMatchMarkets(m) {
+  show("match-markets-display");
+  const vol = m.volume_24h ? `$${Number(m.volume_24h).toLocaleString("en",{maximumFractionDigits:0})} 24h vol` : "";
+  const outcomes = [
+    { label: m.team_a,  p: m.team_a_win,  color: "var(--accent)" },
+    { label: "Draw",    p: m.draw,         color: "var(--muted)"  },
+    { label: m.team_b,  p: m.team_b_win,  color: "var(--green)"  },
+  ];
+  const maxP = Math.max(...outcomes.map(o => o.p), 0.01);
+  document.getElementById("match-markets-rows").innerHTML = `
+    <div class="odds-note" style="margin-bottom:0.6rem">90-min result · ${vol}</div>
+    ${outcomes.map(o => `
+      <div class="odds-bar-row">
+        <span class="odds-bar-label" style="width:110px">${o.label}</span>
+        <div class="odds-bar-track">
+          <div class="odds-bar-fill" style="width:${Math.max(4, Math.round((o.p/maxP)*220))}px;background:${o.color}"></div>
+        </div>
+        <span class="odds-bar-val" style="color:${o.color}">${(o.p*100).toFixed(1)}%</span>
+      </div>`).join("")}
+  `;
+}
+
 function oddsBar(p, maxP, color) {
   const w = Math.max(4, Math.round((p / maxP) * 220));
   return `<div class="odds-bar-fill" style="width:${w}px;background:${color}"></div>`;
@@ -339,6 +361,9 @@ function handleEvent(msg) {
     case "verdict":
       renderVerdict(msg.payload.text);
       break;
+    case "match_markets":
+      renderMatchMarkets(msg.payload);
+      break;
     case "winner_odds":
       renderWinnerOdds(msg.payload);
       break;
@@ -400,7 +425,7 @@ document.getElementById("run-btn").addEventListener("click", async () => {
   document.getElementById("bars").innerHTML = "";
   document.getElementById("role-legend").innerHTML = "";
   Object.keys(barState).forEach(k => delete barState[k]);
-  ["critic-panel", "result-panel", "winner-odds-display",
+  ["critic-panel", "result-panel", "match-markets-display", "winner-odds-display",
    "market-display", "edge-display"].forEach(hide);
   Object.keys(votesByRole).forEach(k => delete votesByRole[k]);
   Object.keys(focusByRole).forEach(k => delete focusByRole[k]);
@@ -419,6 +444,7 @@ document.getElementById("run-btn").addEventListener("click", async () => {
     team_a: match.team_a,
     team_b: match.team_b,
     competition_id: match.group || "",
+    match_date: match.date || "",   // ISO date e.g. "2026-06-11" from bracket
     polymarket_market_id: document.getElementById("market-id").value.trim(),
   };
 
