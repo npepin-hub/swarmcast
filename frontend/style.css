@@ -280,6 +280,7 @@ button#run-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .agent-card .role { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
 .agent-card .prob { font-size: 2rem; font-weight: 700; margin: 0.25rem 0; }
+.agent-card .prob-label { font-size: 0.68rem; color: var(--muted); margin-top: -0.4rem; margin-bottom: 0.3rem; }
 .agent-card .signal { font-size: 0.85rem; color: var(--text); margin-bottom: 0.4rem; }
 .agent-card .reasoning { font-size: 0.78rem; color: var(--muted); line-height: 1.5; }
 .agent-card .flag { font-size: 0.7rem; color: var(--red); margin-top: 0.3rem; }
@@ -303,8 +304,33 @@ button#run-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 }
 #result-panel h2 { font-size: 1rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 1rem; }
 
-.big-number { font-size: 3.5rem; font-weight: 800; display: block; }
+.big-number { font-size: 3.5rem; font-weight: 800; }
 .ci-label   { font-size: 0.85rem; color: var(--muted); }
+
+.consensus-hero {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.6rem;
+}
+.consensus-team {
+  font-size: 1.1rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+.consensus-plain {
+  font-size: 0.88rem;
+  color: var(--muted);
+  line-height: 1.6;
+  max-width: 560px;
+  margin-bottom: 0.4rem;
+}
+.consensus-dissent {
+  font-size: 0.82rem;
+  color: var(--red);
+  line-height: 1.5;
+}
 
 #market-display { margin-top: 1.5rem; }
 #market-display h3 { font-size: 0.9rem; color: var(--muted); margin-bottom: 0.4rem; }
@@ -350,6 +376,25 @@ pre#bet-receipt {
   margin-bottom: 1rem;
 }
 .knockout-label { margin-top: 2.5rem; }
+
+.knockout-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 2rem;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  padding: 0.4rem 0.8rem;
+  text-transform: uppercase;
+  transition: border-color 0.15s, color 0.15s;
+}
+.knockout-toggle:hover { border-color: var(--accent); color: var(--text); }
 
 /* Group grid — 6 columns, wraps to 3 then 2 on smaller screens */
 #group-grid {
@@ -492,6 +537,47 @@ pre#bet-receipt {
   font-size: 0.8rem;
   padding: 0.4rem 0.6rem;
 }
+
+/* ── Aggregate table ─────────────────────────────────────────────────────── */
+
+#aggregate-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+  margin-top: 0.5rem;
+}
+#aggregate-table th {
+  text-align: left;
+  color: var(--muted);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+}
+#aggregate-table td {
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  vertical-align: top;
+  color: var(--text);
+}
+#aggregate-table tr:last-child td { border-bottom: none; }
+#aggregate-table tr:hover td { background: rgba(255,255,255,0.02); }
+
+.agg-signal   { color: var(--muted); max-width: 180px; }
+.agg-reasoning { color: var(--muted); max-width: 340px; line-height: 1.5; }
+
+.delta     { font-size: 0.7rem; margin-left: 0.3rem; }
+.delta.up  { color: var(--green); }
+.delta.dn  { color: var(--red); }
+
+/* ── Agent card reasoning ────────────────────────────────────────────────── */
+
+.agent-card .prob { font-size: 1.8rem; font-weight: 700; display: flex; align-items: baseline; gap: 0.5rem; }
+.agent-card .prob .prob-label { font-size: 0.68rem; color: var(--muted); font-weight: 400; }
+.agent-card .signal { font-size: 0.82rem; color: var(--text); margin: 0.4rem 0 0.2rem; }
+.agent-card .signal strong { color: var(--muted); font-weight: 500; }
+.agent-card .reasoning { font-size: 0.78rem; color: var(--muted); line-height: 1.6; }
 
 /* Utilities */
 .hidden { display: none !important; }

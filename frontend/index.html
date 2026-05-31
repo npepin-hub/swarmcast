@@ -61,16 +61,17 @@
       </div>
     </section>
 
-    <!-- ── Step 2: Match picker (bracket) ────────────────────────────────── -->
+    <!-- ── Step 2: Match picker ───────────────────────────────────────────── -->
     <section id="bracket-section">
       <h2 class="section-label">Step 2 — Pick a match</h2>
       <div id="group-grid"></div>
-
-      <h2 class="section-label knockout-label">Knockout Stage</h2>
-      <div id="knockout-bracket"></div>
+      <button id="knockout-toggle" class="knockout-toggle">
+        Knockout Stage <span id="knockout-chevron">▸</span>
+      </button>
+      <div id="knockout-bracket" class="hidden"></div>
     </section>
 
-    <!-- ── Sticky run bar (appears when match selected) ───────────────────── -->
+    <!-- ── Sticky run bar ─────────────────────────────────────────────────── -->
     <div id="run-bar" class="hidden">
       <div class="run-bar-summary">
         <span class="run-bar-q" id="run-bar-question-label"></span>
@@ -92,31 +93,18 @@
       </div>
     </section>
 
-    <!-- ── Live agent feed ────────────────────────────────────────────────── -->
-    <section id="agent-feed" class="hidden">
-      <h2 class="section-label">Agent Panel</h2>
-      <div id="agent-cards"></div>
-      <div id="bar-chart"><div id="bars"></div></div>
-    </section>
-
-    <!-- ── Critic ─────────────────────────────────────────────────────────── -->
-    <section id="critic-panel" class="hidden">
-      <h2 class="section-label">Holistic Critic</h2>
-      <div id="critic-gaps"></div>
-      <div id="critic-groupthink"></div>
-      <div id="critic-actions"></div>
-    </section>
-
-    <!-- ── Consensus + market ─────────────────────────────────────────────── -->
+    <!-- ── Consensus + market ────────────────────────────────────────────── -->
     <section id="result-panel" class="hidden">
       <h2 class="section-label">Consensus</h2>
 
-      <!-- Swarm prediction -->
+      <!-- Swarm probability -->
       <div id="consensus-display">
-        <div id="consensus-winner" class="consensus-winner"></div>
-        <span id="consensus-p" class="big-number">—</span>
-        <div id="consensus-loser" class="consensus-loser"></div>
-        <span id="consensus-ci" class="ci-label"></span>
+        <div class="consensus-hero">
+          <span id="consensus-p" class="big-number">—</span>
+          <span id="consensus-team-label" class="consensus-team"></span>
+        </div>
+        <p id="consensus-plain" class="consensus-plain"></p>
+        <p id="consensus-dissent" class="consensus-dissent hidden"></p>
       </div>
 
       <!-- Narrative verdict -->
@@ -131,18 +119,49 @@
         <div id="winner-odds-rows"></div>
       </div>
 
-      <!-- Head-to-head match market (rare pre-tournament) -->
+      <!-- Polymarket match market (rare pre-tournament) -->
       <div id="market-display" class="hidden">
-        <h3>Polymarket — Match Market</h3>
-        <span id="market-p" class="big-number">—</span>
-        <span id="spread-label"></span>
+        <div class="consensus-hero">
+          <span id="market-p" class="big-number">—</span>
+          <span class="consensus-team">Polymarket match market</span>
+        </div>
+        <p id="spread-label" class="consensus-plain"></p>
       </div>
 
-      <!-- Edge detection + bet receipt -->
+      <!-- Edge badge + bet receipt -->
       <div id="edge-display" class="hidden">
         <div id="edge-badge"></div>
         <pre id="bet-receipt"></pre>
       </div>
+
+      <!-- Final aggregate table — all agents at a glance -->
+      <div id="aggregate-table-wrap" class="hidden">
+        <h3 class="section-label" style="margin-top:1.5rem">Final Vote — All Agents</h3>
+        <table id="aggregate-table">
+          <thead>
+            <tr>
+              <th>Agent</th><th>Round 1</th><th>Round 2</th>
+              <th>Key signal</th><th>Reasoning</th>
+            </tr>
+          </thead>
+          <tbody id="aggregate-rows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ── Live agent cards ───────────────────────────────────────────────── -->
+    <section id="agent-feed" class="hidden">
+      <h2 class="section-label">Agent Panel</h2>
+      <div id="agent-cards"></div>
+      <div id="bar-chart"><div id="bars"></div></div>
+    </section>
+
+    <!-- ── Critic ─────────────────────────────────────────────────────────── -->
+    <section id="critic-panel" class="hidden">
+      <h2 class="section-label">Holistic Critic</h2>
+      <div id="critic-gaps"></div>
+      <div id="critic-groupthink"></div>
+      <div id="critic-actions"></div>
     </section>
 
   </main>

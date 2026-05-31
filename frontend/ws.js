@@ -46,7 +46,17 @@ function agentColor(role) {
 
 const barState = {};
 
+function teamAName() {
+  return window.selectedMatch?.team_a || "Team A";
+}
+
+const votesByRole = {};   // role → { r1: AgentVote, r2: AgentVote }
+
 function addAgentCard(vote) {
+  // Track votes for final aggregate table
+  if (!votesByRole[vote.role]) votesByRole[vote.role] = {};
+  votesByRole[vote.role][`r${vote.round}`] = vote;
+
   const container = document.getElementById("agent-cards");
   const existing  = document.getElementById(`card-${vote.role}`);
   const card      = existing || document.createElement("div");
@@ -56,8 +66,10 @@ function addAgentCard(vote) {
   card.style.borderLeftColor = color;
   card.innerHTML  = `
     <div class="role" style="color:${color}">${vote.role.replace(/_/g, " ")} · round ${vote.round}</div>
-    <div class="prob">${(vote.probability * 100).toFixed(1)}%</div>
-    <div class="signal">${vote.key_signal}</div>
+    <div class="prob">${(vote.probability * 100).toFixed(1)}%
+      <span class="prob-label">P(${teamAName()} wins)</span>
+    </div>
+    <div class="signal"><strong>Key signal:</strong> ${vote.key_signal}</div>
     <div class="reasoning">${vote.reasoning}</div>
     ${vote.uncertainty_flag ? '<div class="flag">⚠ Low data confidence</div>' : ""}
   `;
@@ -99,16 +111,57 @@ function renderCritique(critique) {
 
 function renderConsensus(consensus) {
   show("result-panel");
-  const pA = consensus.probability;
-  const pB = 1 - pA;
-  const winner = pA >= pB ? currentTeamA : currentTeamB;
-  const loser  = pA >= pB ? currentTeamB : currentTeamA;
-  setText("consensus-winner", winner ? `${winner} wins` : "");
-  setText("consensus-p",      `${(Math.max(pA, pB) * 100).toFixed(1)}%`);
-  setText("consensus-loser",  loser ? `${loser}: ${(Math.min(pA, pB) * 100).toFixed(1)}%` : "");
-  setText("consensus-ci",
-    `80% CI [${(consensus.ci_low * 100).toFixed(1)}%, ${(consensus.ci_high * 100).toFixed(1)}%]`
+  const team    = teamAName();
+  const pct     = (consensus.probability * 100).toFixed(1);
+  const lo      = (consensus.ci_low  * 100).toFixed(1);
+  const hi      = (consensus.ci_high * 100).toFixed(1);
+  const nAgents = consensus.all_votes?.length ?? Object.keys(votesByRole).length;
+  const dissent = consensus.minority_dissent?.length ?? 0;
+
+  setText("consensus-p", `${pct}%`);
+  setText("consensus-team-label", `chance ${team} wins`);
+  setText("consensus-plain",
+    `${nAgents} specialist agents deliberated over 2 rounds. ` +
+    `We are 80% confident the true probability sits between ${lo}% and ${hi}%.`
   );
+
+  const dissentEl = document.getElementById("consensus-dissent");
+  if (dissent > 0) {
+    dissentEl.textContent = `${dissent} agent${dissent > 1 ? "s" : ""} disagreed strongly — see minority dissent in the panel below.`;
+    dissentEl.classList.remove("hidden");
+  } else {
+    dissentEl.classList.add("hidden");
+  }
+
+  renderAggregateTable();
+}
+
+function renderAggregateTable() {
+  const wrap = document.getElementById("aggregate-table-wrap");
+  const tbody = document.getElementById("aggregate-rows");
+  if (!wrap || !tbody) return;
+
+  const rows = Object.entries(votesByRole).map(([role, rounds]) => {
+    const r1 = rounds.r1;
+    const r2 = rounds.r2 || r1;
+    const color = agentColor(role);
+    const delta = r2 && r1 ? ((r2.probability - r1.probability) * 100).toFixed(1) : "—";
+    const deltaStr = delta !== "—"
+      ? (parseFloat(delta) >= 0 ? `+${delta}pp` : `${delta}pp`)
+      : "—";
+    return `<tr>
+      <td style="color:${color};font-weight:600">${role.replace(/_/g, " ")}</td>
+      <td>${r1 ? (r1.probability * 100).toFixed(1) + "%" : "—"}</td>
+      <td>${r2 ? (r2.probability * 100).toFixed(1) + "%" : "—"}
+        <span class="delta ${parseFloat(delta) >= 0 ? "up" : "dn"}">${deltaStr}</span>
+      </td>
+      <td class="agg-signal">${r2?.key_signal || r1?.key_signal || ""}</td>
+      <td class="agg-reasoning">${r2?.reasoning || r1?.reasoning || ""}</td>
+    </tr>`;
+  });
+
+  tbody.innerHTML = rows.join("");
+  wrap.classList.remove("hidden");
 }
 
 function renderVerdict(text) {
@@ -165,8 +218,17 @@ function renderWinnerOdds({ teams, h2h, favorites }) {
 
 function renderMarket(snapshot, spread) {
   show("market-display");
-  setText("market-p", `${(snapshot.market_probability * 100).toFixed(1)}%`);
-  setText("spread-label", `Spread vs swarm: ${(spread * 100).toFixed(1)} pp`);
+  const mPct     = (snapshot.market_probability * 100).toFixed(1);
+  const spreadPp = (spread * 100).toFixed(1);
+  const team     = teamAName();
+  const dir      = snapshot.market_probability < window.selectedMatch?.team_a_p
+    ? "lower than" : "higher than";
+
+  setText("market-p", `${mPct}%`);
+  setText("spread-label",
+    `The crowd gives ${team} a ${mPct}% chance — ` +
+    `${spreadPp} percentage points away from SwarmCast's estimate.`
+  );
 }
 
 function renderEdge(edgeDetected, betReceipt) {
@@ -272,12 +334,16 @@ document.getElementById("run-btn").addEventListener("click", async () => {
   Object.keys(barState).forEach(k => delete barState[k]);
   ["critic-panel", "result-panel", "verdict-display", "winner-odds-display",
    "market-display", "edge-display"].forEach(hide);
+  Object.keys(votesByRole).forEach(k => delete votesByRole[k]);
+  const aggWrap = document.getElementById("aggregate-table-wrap");
+  if (aggWrap) aggWrap.classList.add("hidden");
   show("viz-panel");
   show("agent-feed");
   window.resetBoids?.();
   window.setSwarmPhase?.("deliberating");
   currentTeamA = match.team_a;
   currentTeamB = match.team_b;
+  document.getElementById("viz-panel").scrollIntoView({ behavior: "smooth", block: "start" });
 
   const body = {
     match_query: matchQuery,
