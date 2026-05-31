@@ -85,6 +85,42 @@ def _call_history(tool: str, params: dict) -> str:
     return text
 
 
+def _squad_context(profile_json: str, team: str) -> str:
+    """Extract key players, injury status, and tournament odds from a team profile."""
+    try:
+        d = json.loads(profile_json)
+    except Exception:
+        return profile_json  # pass raw text if unparseable
+
+    lines = [f"### {team}"]
+
+    kp = d.get("key_players", [])
+    if kp:
+        lines.append("Key players (name · position · club):")
+        for p in kp:
+            lines.append(f"  - {p['name']} · {p.get('position','?')} · {p.get('club','?')}")
+
+    injuries = d.get("injury_report", [])
+    if injuries:
+        lines.append("Injury report:")
+        for inj in injuries:
+            lines.append(f"  - {inj}")
+    else:
+        lines.append("No injury reports available (pre-tournament).")
+
+    odds = d.get("tournament_odds", {})
+    gp = odds.get("group_prediction", {})
+    narrative = gp.get("narrative", "")
+    if narrative:
+        lines.append(f"Group outlook: {narrative}")
+
+    dark_horse = odds.get("dark_horse_pick", "")
+    if dark_horse:
+        lines.append(f"Dark horse note: {dark_horse}")
+
+    return "\n".join(lines)
+
+
 def get_groups_data() -> dict:
     """Fetch all 12 WC 2026 groups with teams and matches. Cached for the session."""
     raw = _call("get_groups", {})
@@ -100,15 +136,17 @@ async def build_context_bundle(
     group: str = "",
 ) -> dict[str, str]:
     """Return context slices keyed by data_slice_id, sourced live from wc26-mcp.
-    All 13 MCP subprocess calls run concurrently via asyncio.gather.
+    All 12 MCP calls run concurrently via asyncio.gather.
+    get_injuries is omitted (empty pre-tournament); squad/fitness data is
+    extracted directly from get_team_profile which carries key_players,
+    injury_report, and tournament_odds fields.
     """
     (
         profile_a, profile_b, compare, h2h,
         hist_team_a, hist_team_b,
         matches_a, matches_b,
         news_a, news_b,
-        injuries_a, injuries_b,
-        standings,
+        standings, odds,
     ) = await asyncio.gather(
         asyncio.to_thread(_call, "get_team_profile",        {"team": team_a}),
         asyncio.to_thread(_call, "get_team_profile",        {"team": team_b}),
@@ -120,9 +158,8 @@ async def build_context_bundle(
         asyncio.to_thread(_call, "get_matches",             {"team": team_b}),
         asyncio.to_thread(_call, "get_news",                {"team": team_a, "limit": 5}),
         asyncio.to_thread(_call, "get_news",                {"team": team_b, "limit": 5}),
-        asyncio.to_thread(_call, "get_injuries",            {"team": team_a}),
-        asyncio.to_thread(_call, "get_injuries",            {"team": team_b}),
         asyncio.to_thread(_call, "get_standings",           {"group": group} if group else {}),
+        asyncio.to_thread(_call, "get_odds",                {"category": "groups"}),
     )
 
     return {
@@ -137,14 +174,20 @@ async def build_context_bundle(
             f"\n\n### {team_b}\n{hist_team_b}"
         ),
         "live_form": (
-            f"## Recent Matches\n\n### {team_a}\n{matches_a}"
+            f"## Scheduled Matches\n\n### {team_a}\n{matches_a}"
             f"\n\n### {team_b}\n{matches_b}"
             f"\n\n## Latest News\n\n### {team_a}\n{news_a}"
             f"\n\n### {team_b}\n{news_b}"
         ),
         "live_injuries": (
-            f"## Injury Reports\n\n### {team_a}\n{injuries_a}"
-            f"\n\n### {team_b}\n{injuries_b}"
+            f"## Squad & Fitness Context\n"
+            f"NOTE: Official injury reports are pre-tournament and may be incomplete. "
+            f"Use key player data, club affiliations, and group outlook as fitness proxies.\n\n"
+            f"{_squad_context(profile_a, team_a)}\n\n"
+            f"{_squad_context(profile_b, team_b)}"
         ),
-        "live_standings": standings,
+        "live_standings": (
+            f"## Group Standings\n{standings}"
+            f"\n\n## Bookmaker Group Predictions\n{odds}"
+        ),
     }

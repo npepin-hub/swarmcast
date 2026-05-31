@@ -19,6 +19,9 @@ const show = id => document.getElementById(id)?.classList.remove("hidden");
 const hide = id => document.getElementById(id)?.classList.add("hidden");
 const setText = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
 
+let currentTeamA = "";
+let currentTeamB = "";
+
 // ── Role legend ───────────────────────────────────────────────────────────────
 
 function renderLegend(specialists) {
@@ -96,16 +99,74 @@ function renderCritique(critique) {
 
 function renderConsensus(consensus) {
   show("result-panel");
-  setText("consensus-p", `${(consensus.probability * 100).toFixed(1)}%`);
+  const pA = consensus.probability;
+  const pB = 1 - pA;
+  const winner = pA >= pB ? currentTeamA : currentTeamB;
+  const loser  = pA >= pB ? currentTeamB : currentTeamA;
+  setText("consensus-winner", winner ? `${winner} wins` : "");
+  setText("consensus-p",      `${(Math.max(pA, pB) * 100).toFixed(1)}%`);
+  setText("consensus-loser",  loser ? `${loser}: ${(Math.min(pA, pB) * 100).toFixed(1)}%` : "");
   setText("consensus-ci",
     `80% CI [${(consensus.ci_low * 100).toFixed(1)}%, ${(consensus.ci_high * 100).toFixed(1)}%]`
   );
 }
 
+function renderVerdict(text) {
+  show("verdict-display");
+  setText("verdict-text", text);
+}
+
+function renderWinnerOdds({ teams, h2h, favorites }) {
+  show("winner-odds-display");
+
+  let h2hHtml = "";
+  if (h2h) {
+    const entries = Object.entries(h2h).sort(([, a], [, b]) => b - a);
+    const [topTeam, topP] = entries[0];
+    const [botTeam, botP] = entries[1];
+    h2hHtml = `
+      <div class="odds-subsection">
+        <div class="odds-label">Market-implied match odds</div>
+        <div class="h2h-row">
+          <span class="h2h-winner">${topTeam}</span>
+          <span class="h2h-p">${(topP * 100).toFixed(1)}%</span>
+          <span class="h2h-vs">vs</span>
+          <span class="h2h-loser">${botTeam}</span>
+          <span class="h2h-p muted">${(botP * 100).toFixed(1)}%</span>
+        </div>
+        <div class="odds-note">Derived by normalising tournament winner odds</div>
+      </div>`;
+  }
+
+  const teamHtml = `
+    <div class="odds-subsection">
+      <div class="odds-label">Tournament winner odds</div>
+      ${Object.entries(teams).map(([team, snap]) => `
+        <div class="winner-odds-row">
+          <span class="winner-team">${team}</span>
+          <span class="winner-p">${(snap.market_probability * 100).toFixed(1)}%</span>
+          <span class="winner-vol">${snap.volume_24h ? "Vol 24h $" + Number(snap.volume_24h).toLocaleString("en", {maximumFractionDigits: 0}) : ""}</span>
+        </div>`).join("")}
+    </div>`;
+
+  const favHtml = favorites?.length ? `
+    <div class="odds-subsection">
+      <div class="odds-label">WC2026 top favorites</div>
+      ${favorites.map((f, i) => `
+        <div class="fav-row">
+          <span class="fav-rank">${i + 1}</span>
+          <span class="fav-team">${f.team}</span>
+          <span class="fav-p">${(f.probability * 100).toFixed(1)}%</span>
+        </div>`).join("")}
+    </div>` : "";
+
+  document.getElementById("winner-odds-rows").innerHTML = h2hHtml + teamHtml + favHtml;
+}
+
 function renderMarket(snapshot, spread) {
   show("market-display");
   setText("market-p", `${(snapshot.market_probability * 100).toFixed(1)}%`);
-  setText("spread-label", `Spread: ${(spread * 100).toFixed(1)} pp`);
+  setText("spread-label", `Spread vs swarm: ${(spread * 100).toFixed(1)} pp`);
 }
 
 function renderEdge(edgeDetected, betReceipt) {
@@ -129,6 +190,7 @@ function handleEvent(msg) {
       break;
     case "agent_vote":
       addAgentCard(msg.payload);
+      window.updateBoidVote?.(msg.payload.role, msg.payload.probability);
       break;
     case "critic_fired":
       window.setSwarmPhase?.("critic");
@@ -137,10 +199,18 @@ function handleEvent(msg) {
     case "delphi_round":
       window.setSwarmPhase?.("delphi");
       addAgentCard(msg.payload);
+      window.updateBoidVote?.(msg.payload.role, msg.payload.probability);
       break;
     case "consensus":
       window.setSwarmPhase?.("consensus");
+      window.lockConsensusColor?.(msg.payload.probability);
       renderConsensus(msg.payload);
+      break;
+    case "verdict":
+      renderVerdict(msg.payload.text);
+      break;
+    case "winner_odds":
+      renderWinnerOdds(msg.payload);
       break;
     case "market_check":
       if (msg.payload.snapshot) renderMarket(msg.payload.snapshot, msg.payload.spread);
@@ -200,10 +270,14 @@ document.getElementById("run-btn").addEventListener("click", async () => {
   document.getElementById("bars").innerHTML = "";
   document.getElementById("role-legend").innerHTML = "";
   Object.keys(barState).forEach(k => delete barState[k]);
-  ["critic-panel", "result-panel", "market-display", "edge-display"].forEach(hide);
+  ["critic-panel", "result-panel", "verdict-display", "winner-odds-display",
+   "market-display", "edge-display"].forEach(hide);
   show("viz-panel");
   show("agent-feed");
+  window.resetBoids?.();
   window.setSwarmPhase?.("deliberating");
+  currentTeamA = match.team_a;
+  currentTeamB = match.team_b;
 
   const body = {
     match_query: matchQuery,

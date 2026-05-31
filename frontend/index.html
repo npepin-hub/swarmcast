@@ -110,15 +110,35 @@
     <!-- ── Consensus + market ─────────────────────────────────────────────── -->
     <section id="result-panel" class="hidden">
       <h2 class="section-label">Consensus</h2>
+
+      <!-- Swarm prediction -->
       <div id="consensus-display">
+        <div id="consensus-winner" class="consensus-winner"></div>
         <span id="consensus-p" class="big-number">—</span>
+        <div id="consensus-loser" class="consensus-loser"></div>
         <span id="consensus-ci" class="ci-label"></span>
       </div>
+
+      <!-- Narrative verdict -->
+      <div id="verdict-display" class="hidden">
+        <h3>Swarm Verdict</h3>
+        <p id="verdict-text"></p>
+      </div>
+
+      <!-- Polymarket winner odds + H2H + favorites -->
+      <div id="winner-odds-display" class="hidden">
+        <h3>Polymarket — Tournament Winner Odds</h3>
+        <div id="winner-odds-rows"></div>
+      </div>
+
+      <!-- Head-to-head match market (rare pre-tournament) -->
       <div id="market-display" class="hidden">
-        <h3>Market</h3>
+        <h3>Polymarket — Match Market</h3>
         <span id="market-p" class="big-number">—</span>
         <span id="spread-label"></span>
       </div>
+
+      <!-- Edge detection + bet receipt -->
       <div id="edge-display" class="hidden">
         <div id="edge-badge"></div>
         <pre id="bet-receipt"></pre>
