@@ -43,6 +43,10 @@ function agentColor(role) {
 
 const barState = {};
 
+function teamAName() {
+  return window.selectedMatch?.team_a || "Team A";
+}
+
 function addAgentCard(vote) {
   const container = document.getElementById("agent-cards");
   const existing  = document.getElementById(`card-${vote.role}`);
@@ -54,6 +58,7 @@ function addAgentCard(vote) {
   card.innerHTML  = `
     <div class="role" style="color:${color}">${vote.role.replace(/_/g, " ")} · round ${vote.round}</div>
     <div class="prob">${(vote.probability * 100).toFixed(1)}%</div>
+    <div class="prob-label">P(${teamAName()} wins)</div>
     <div class="signal">${vote.key_signal}</div>
     <div class="reasoning">${vote.reasoning}</div>
     ${vote.uncertainty_flag ? '<div class="flag">⚠ Low data confidence</div>' : ""}
@@ -98,7 +103,7 @@ function renderConsensus(consensus) {
   show("result-panel");
   setText("consensus-p", `${(consensus.probability * 100).toFixed(1)}%`);
   setText("consensus-ci",
-    `80% CI [${(consensus.ci_low * 100).toFixed(1)}%, ${(consensus.ci_high * 100).toFixed(1)}%]`
+    `P(${teamAName()} wins) · 80% CI [${(consensus.ci_low * 100).toFixed(1)}%, ${(consensus.ci_high * 100).toFixed(1)}%]`
   );
 }
 

@@ -280,6 +280,7 @@ button#run-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .agent-card .role { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
 .agent-card .prob { font-size: 2rem; font-weight: 700; margin: 0.25rem 0; }
+.agent-card .prob-label { font-size: 0.68rem; color: var(--muted); margin-top: -0.4rem; margin-bottom: 0.3rem; }
 .agent-card .signal { font-size: 0.85rem; color: var(--text); margin-bottom: 0.4rem; }
 .agent-card .reasoning { font-size: 0.78rem; color: var(--muted); line-height: 1.5; }
 .agent-card .flag { font-size: 0.7rem; color: var(--red); margin-top: 0.3rem; }

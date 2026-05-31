@@ -96,8 +96,8 @@ class Boid {
     p.scale(scale);
     p.noStroke();
     p.fill(this.hue, sat, bright, alpha);
-    p.ellipse(0, 0, 12, 5);
-    p.triangle(-6, 0, -11, -4, -11, 4);
+    p.ellipse(0, 0, 22, 9);
+    p.triangle(-10, 0, -19, -7, -19, 7);
     p.pop();
   }
 }
