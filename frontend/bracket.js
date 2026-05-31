@@ -29,8 +29,8 @@ function selectMatch(row, match, groupId) {
   const homeRaw = match.home_team_name || match.home_team_id || "TBD";
   const awayRaw = match.away_team_name || match.away_team_id || "TBD";
 
-  // Strip leading emoji+space if present (home_team_name already has it)
-  const stripFlag = s => s.replace(/^[\p{Emoji_Presentation}\p{Extended_Pictographic}]\s*/u, "").trim();
+  // Strip leading flag emoji+space (flags = Regional Indicator pairs U+1F1E0-1F1FF)
+  const stripFlag = s => s.replace(/^[\u{1F1E0}-\u{1F1FF}\p{Emoji_Presentation}\p{Extended_Pictographic}]+\s*/u, "").trim();
   const teamA = stripFlag(homeRaw);
   const teamB = stripFlag(awayRaw);
 
