@@ -168,10 +168,26 @@ function renderAggregateTable() {
     const r1 = rounds.r1;
     const r2 = rounds.r2 || r1;
     const color = agentColor(role);
-    const delta = r2 && r1 ? ((r2.probability - r1.probability) * 100).toFixed(1) : "—";
-    const deltaStr = delta !== "—"
-      ? (parseFloat(delta) >= 0 ? `+${delta}pp` : `${delta}pp`)
-      : "—";
+    const winner = v => v.team_a_goals > v.team_b_goals ? "a" : v.team_b_goals > v.team_a_goals ? "b" : "draw";
+    const resolveWinner = (v) => {
+      const side = winner(v);
+      if (side === "draw") return "Votes: draw";
+      const name = side === "a"
+        ? (window.selectedMatch?.team_a || "Team A")
+        : (window.selectedMatch?.team_b || "Team B");
+      return `Votes: ${name} wins`;
+    };
+    const hasR2 = r1 && rounds.r2;
+    const flipped = hasR2 && winner(r1) !== "draw" && winner(r2) !== "draw" && winner(r1) !== winner(r2);
+    const confDelta = hasR2 ? r2.probability - r1.probability : 0;
+    const confShifted = hasR2 && winner(r1) === winner(r2) && Math.abs(confDelta) > 0.10;
+    const indicator = flipped
+      ? `<span class="flip-tag"><span class="flip-coin">🪙</span> flip</span>`
+      : confShifted
+        ? confDelta > 0
+          ? `<span class="conf-tag conf-up">▲ confidence</span>`
+          : `<span class="conf-tag conf-dn">▼ confidence</span>`
+        : "";
     const fmt = (v) => v
       ? `${v.team_a_goals}–${v.team_b_goals} · ${(v.probability * 100).toFixed(1)}%`
       : "—";
@@ -181,9 +197,14 @@ function renderAggregateTable() {
         <div style="font-weight:600">${role.replace(/_/g, " ")}</div>
         ${focus ? `<div class="agg-focus">${focus}</div>` : ""}
       </td>
-      <td>${fmt(r1)}</td>
-      <td>${fmt(r2)}
-        <span class="delta ${parseFloat(delta) >= 0 ? "up" : "dn"}">${deltaStr}</span>
+      <td>
+        <div>${fmt(r1)}</div>
+        ${r1 ? `<div class="agg-predicted-winner">${resolveWinner(r1)}</div>` : ""}
+      </td>
+      <td>
+        <div>${fmt(r2)}</div>
+        <div class="agg-predicted-winner">${resolveWinner(r2)}</div>
+        ${indicator}
       </td>
       <td class="agg-signal">${r2?.key_signal || r1?.key_signal || ""}</td>
       <td class="agg-reasoning">${r2?.reasoning || r1?.reasoning || ""}</td>
