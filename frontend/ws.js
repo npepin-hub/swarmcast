@@ -367,25 +367,26 @@ function handleEvent(msg) {
       break;
     case "match_markets":
       renderMatchMarkets(msg.payload);
+      if (msg.payload.team_a_market_id) {
+        document.getElementById("market-id").value = msg.payload.team_a_market_id;
+      }
       break;
     case "winner_odds":
       renderWinnerOdds(msg.payload);
-      break;
-    case "market_check":
-      if (msg.payload.snapshot) renderMarket(msg.payload.snapshot, msg.payload.spread);
-      break;
-    case "winner_odds":
-      // Fallback: populate Polymarket column from tournament H2H if no match market
       if (!document.getElementById("market-p-inline")?.textContent.match(/\d/)) {
         const h2h = msg.payload.h2h;
         const team = teamAName();
         const p = h2h?.[team];
         if (p != null) {
-          const pct = (p * 100).toFixed(1);
           const swarmPct = parseFloat(document.getElementById("consensus-p")?.textContent) || 0;
           const spread = Math.abs(swarmPct / 100 - p);
           renderMarket({ market_probability: p, market_id: "winner_odds_derived" }, spread);
         }
+      }
+      break;
+    case "market_check":
+      if (msg.payload.snapshot) {
+        renderMarket(msg.payload.snapshot, msg.payload.spread);
       }
       break;
     case "edge_result":
