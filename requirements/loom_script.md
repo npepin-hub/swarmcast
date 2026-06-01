@@ -129,55 +129,112 @@ A GIF lives in the README. No narration — the overlays carry the story.
 
 ---
 
-### [0:58 — DELPHI + CONSENSUS]
+### [0:58 — DELPHI ROUNDS]
 *Shot: fish schools begin aligning.*
-`[TEXT OVERLAY]` **Delphi round — specialists revise in isolation**
+`[TEXT OVERLAY]` **Revision rounds 2..5 — each specialist revises in isolation**
 
-> "A Delphi round runs — each specialist revises, seeing only the aggregate probability. Not each other's reasoning."
+> "The swarm runs multiple revision rounds. Each specialist sees only the aggregate probability — not each other's reasoning. This prevents anchoring."
 
-*Shot: schools lock. Consensus tile slides in.*
-`[TEXT OVERLAY]` **Consensus locked**
+*Shot: schools pulling tighter with each round. Speech bubbles still visible.*
+`[TEXT OVERLAY]` **Round 2 → 3 → 4 → 5 · votes tracked across all rounds**
 
-> "The consensus. A predicted score. A win probability."
-
-*Shot: SwarmCast % VS Polymarket % visible.*
-`[TEXT OVERLAY]` **Our prediction vs Polymarket — first time the market is revealed**
-
-> "Compared directly to Polymarket — a market SwarmCast never looked at until this moment."
-
-*Shot: edge badge.*
-`[TEXT OVERLAY]` **Edge detected · threshold exceeded**
-
-> "The spread exceeds our threshold. SwarmCast flags the edge."
+> "Five rounds. The contrarian is still holding a different view. You can see the dissent in the school — one fish slightly out of formation."
 
 ---
 
-### [1:14 — AGENT TABLE]
-*Shot: scroll to aggregate table.*
+### [1:10 — CONSENSUS TILE]
+*Shot: schools lock. Page scrolls to consensus tile. Predicted score appears.*
+`[TEXT OVERLAY]` **Consensus locked — predicted score**
+
+> "The consensus. First — the predicted score."
+
+*Shot: zoom on score — e.g. Mexico 2 – South Africa 1*
+`[TEXT OVERLAY]` **Mexico 2 – South Africa 1**
+
+> "Mexico 2, South Africa 1."
+
+*Shot: win probability appears below score.*
+`[TEXT OVERLAY]` **Win probability with 80% confidence interval**
+
+> "And the win probability for Mexico — with a confidence interval. The wider the interval, the more the agents disagreed."
+
+*Shot: plain-English explanation text visible.*
+`[TEXT OVERLAY]` **Plain-English explanation of what drove the consensus**
+
+> "Below that — a plain-English summary of what drove the answer and what the key uncertainty was."
+
+---
+
+### [1:22 — EDGE DETECTION]
+*Shot: SwarmCast % VS Polymarket % side by side. Hold here.*
+`[TEXT OVERLAY]` **Our prediction vs Polymarket — revealed for the first time**
+
+> "Now — for the first time — Polymarket. SwarmCast never looked at this market during deliberation. This is the number it's being compared against."
+
+*Shot: point to SwarmCast % on the left.*
+`[TEXT OVERLAY]` **SwarmCast: [X]%**
+
+> "SwarmCast says [X]% chance Mexico wins."
+
+*Shot: point to Polymarket % on the right.*
+`[TEXT OVERLAY]` **Polymarket: [Y]%**
+
+> "Polymarket says [Y]%."
+
+*Shot: edge badge lights up — spread in pp.*
+`[TEXT OVERLAY]` **Edge: [Z]pp · threshold is 8pp**
+
+> "The spread is [Z] percentage points. Our threshold is 8. If we're above it — SwarmCast flags the edge."
+
+*Shot: hover over edge badge — tooltip appears explaining the calculation.*
+`[TEXT OVERLAY]` **Hover to see the full calculation**
+
+> "Hover over the edge badge — it explains exactly how the spread is computed."
+
+> "Note: edge detection is the key moment. Automated order placement would require legal review — prediction market regulations vary by jurisdiction."
+
+---
+
+### [1:38 — AGENT TABLE]
+*Shot: scroll down to aggregate table.*
 `[TEXT OVERLAY]` **Every agent · every round · key signal · full reasoning**
 
-> "Every agent's work is visible — both rounds, their key signal, their full reasoning, and how much they moved between rounds."
+> "And here — every agent, across every round. You can see who moved, who held firm, and what their key signal was."
+
+*Shot: pause on a row showing a big R1 → R5 delta.*
+`[TEXT OVERLAY]` **Vote trajectory: R1 → R5 · flip detection · confidence delta**
+
+> "This agent moved significantly between round one and round five. That shift — and what caused it — is the training signal for v2."
+
+*Shot: pause on the contrarian row.*
+`[TEXT OVERLAY]` **Contrarian: always last to align · source of minority dissent**
+
+> "The contrarian. It's the last to align. Its dissent widens the confidence interval. That's by design."
 
 ---
 
-### [1:22 — CUT TO POLYMARKET]
-*Action: switch to Polymarket tab.*
-`[TEXT OVERLAY]` **The market SwarmCast was compared against**
+### [1:52 — CUT TO POLYMARKET]
+*Action: switch to Polymarket tab — `https://polymarket.com/sports/world-cup/fifwc-mex-rsa-2026-06-11`*
+`[TEXT OVERLAY]` **The market — live on Polymarket**
 
-> "This is the number we went up against. Live on Polymarket. Mexico vs South Africa. June 11th."
+> "And this is the market. Mexico versus South Africa. June 11th. Live odds."
 
-*Hold on the price for 3 seconds.*
-`[TEXT OVERLAY]` **SwarmCast built its probability before seeing this**
+*Hold on the market price for 4 seconds. Let it breathe.*
+`[TEXT OVERLAY]` **SwarmCast built its probability before ever seeing this**
 
-> "SwarmCast built its probability before ever seeing this. That's what makes the edge real."
+> "SwarmCast built its number before ever seeing this. That is what makes the edge real — or not."
 
 ---
 
-### [1:35 — CLOSE]
+### [2:02 — CLOSE]
 *Stay on Polymarket page.*
 `[TEXT OVERLAY]` **No central coordinator · no hardcoded answers**
 
-> "No central coordinator. No hardcoded answers. The swarm composes itself from the question."
+> "No central coordinator. No hardcoded answers. The swarm composed itself from the question. The contrarian kept it honest. The critic made it smarter."
+
+`[TEXT OVERLAY]` **Every call traced in W&B Weave · resolved matches become training data**
+
+> "Every call is traced in Weave. When this match resolves tomorrow — the trace gets labeled. That label is a training sample for the next version."
 
 `[TEXT OVERLAY]` **Check back June 11th**
 
@@ -185,11 +242,11 @@ A GIF lives in the README. No narration — the overlays carry the story.
 
 ---
 
-### [1:40 — END]
-`[TEXT OVERLAY]` **SwarmCast · Built at MIT / The Engine · May 31 2026**
+### [2:12 — END]
+`[TEXT OVERLAY]` **SwarmCast · MIT / The Engine · June 2026**
 
 ---
 
-*Loom: ~90 seconds · GIF: ~20 seconds*
+*Loom: ~2 min 15 sec · GIF: ~20 seconds*
 *Match: Mexico vs South Africa · Group A · June 11 2026*
 *Polymarket: https://polymarket.com/sports/world-cup/fifwc-mex-rsa-2026-06-11*

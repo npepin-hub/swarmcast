@@ -14,7 +14,7 @@ You pick a question ("Who wins?", "Predict the final score", "Over 2.5 goals?") 
 
 1. **Spawns N specialist agents** — the meta-orchestrator reads the question and decides which experts it needs (tacticians, historians, fitness analysts, set piece specialists, a psychological profiler, and always a contrarian biased against the favourite).
 2. **Agents deliberate in parallel** — each runs a ReAct loop with live MCP tools, forming an independent opinion. They never see each other's reasoning. They never see Polymarket.
-3. **A holistic critic audits the panel** — not to challenge individual agents, but to find what the *collective* is blind to. It returns coverage gaps, groupthink signals, and recommended actions. The orchestrator acts: spawning new agents, rewriting weak prompts, broadcasting gap signals.
+3. **A holistic critic audits the panel** — not to challenge individual agents, but to find what the *collective* is blind to. It returns coverage gaps, groupthink signals, and recommended actions. The orchestrator then spawns new agents, rewrites weak prompts, broadcasts gap signals.
 4. **N revision rounds** (default: 5) — the evolved swarm revises its estimates. Each agent's vote trajectory is tracked across all rounds.
 5. **Consensus** — confidence-weighted probability, predicted score, 80% CI, minority dissent.
 6. **Polymarket comparison** — the market price is revealed for the first time. The spread is computed. If it exceeds the threshold, an edge is flagged.
@@ -113,10 +113,11 @@ cp .env.example .env
 Set in `.env`:
 
 ```env
-WANDB_API_KEY=...
+WANDB_API_KEY=...       # required — W&B Inference + Weave tracing
 WANDB_ENTITY=ceatp-ceatp
 WANDB_PROJECT=swarmcast
-WC_API_KEY=...
+WC_API_KEY=...          # required for @zafronix/wc-mcp (WC history 1930–2026)
+                        # without it, agents lose H2H records, past rosters, standings
 ```
 
 Node.js required for MCP servers (`npx` auto-installs on first run).
@@ -133,15 +134,7 @@ Open `http://localhost:8000` — pick a question, pick a match, watch the fish.
 
 ## Weave tracing
 
-Every agent call is a future training sample:
-
-```
-https://wandb.ai/{WANDB_ENTITY}/{WANDB_PROJECT}/weave
-```
-
-`run_forecast_pipeline` → `spawn_specialists` → `run_swarm` → `run_critic` → `act_on_critique` → revision rounds → `aggregate` → `run_market_validation`
-
-When matches resolve, `label_trace(call_id, outcome)` attaches ground truth — building the dataset for v2 fine-tuning on CoreWeave.
+Every agent call is traced at `https://wandb.ai/{WANDB_ENTITY}/{WANDB_PROJECT}/weave`. When matches resolve, traces are labeled with the ground truth outcome — building the dataset for v2 fine-tuning on CoreWeave.
 
 ## Backtest
 
@@ -152,6 +145,20 @@ open http://localhost:8000/history
 
 ---
 
+## Endpoints
+
+| Path | Requires | What it does |
+|------|----------|-------------|
+| `GET /` | Node.js (npx) | Frontend — bracket loads from `wc26-mcp` |
+| `GET /history` | nothing | 2022 WC backtest UI — works from disk cache, no keys needed |
+| `WS /history/ws` | `WANDB_API_KEY` | Runs a live backtest evaluation against 2022 matches |
+| `POST /forecast` | `WANDB_API_KEY` + Node.js | Full live swarm pipeline — requires inference credentials |
+| `WS /ws` | `WANDB_API_KEY` | Streams real-time agent events during `/forecast` |
+| `GET /matches` | Node.js (npx) | WC 2026 bracket data for the frontend |
+| `GET /health` | nothing | Health check |
+
+`/history` is the only endpoint that works fully offline — it reads from the disk cache at `backend/eval/wc2022_match_cache.json`. Everything else requires `WANDB_API_KEY` set in `.env`.
+
 ## Project structure
 
 ```
@@ -161,15 +168,16 @@ backend/
   data/        wc26.py (MCP client + disk cache)
   market/      gamma.py, edge.py
   eval/        wc_backtest.py, weave_eval.py, router.py
-  main.py      /forecast + /ws + /history
+  main.py      all routes
 frontend/
   index.html   bracket + question picker + consensus tile
   sketch.js    p5.js Boids
   ws.js        WebSocket client
+  history.html backtest results page
 requirements/
   SwarmCast.md full system brief
 ```
 
 ---
 
-*Multi-Agent Orchestration Hackathon · MIT / The Engine · June 2026*
+*Multi-Agent Orchestration Hackathon · MIT / The Engine · Boston Tech Week · June 2026*
