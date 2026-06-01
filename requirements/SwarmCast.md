@@ -10,20 +10,48 @@
 
 ## 1. The Core Idea
 
-SwarmCast is a multi-agent deliberation system for World Cup 2026 match forecasting. A meta-orchestrator reads a match question and dynamically spawns a pool of 8 specialist agents — each with a narrow analytical lens, a named focus area, and access to live MCP data. Agents deliberate in parallel in full isolation. A holistic critic reads the full panel and identifies what the collective intelligence is missing. A LangGraph-powered Delphi round gives each specialist one revision pass via its own agent thread. A confidence-weighted consensus probability emerges.
+SwarmCast is a multi-agent deliberation system for World Cup 2026 match forecasting. A meta-orchestrator reads a match question and dynamically spawns a pool of N specialist agents — each with a narrow analytical lens, a named focus area, and live access to MCP data. Agents deliberate in parallel in full isolation, forming independent opinions before any aggregation. A holistic critic reads the full panel and identifies what the collective intelligence is missing — coverage gaps, groupthink signals, blind spots specific to this match — then the orchestrator acts (spawn / rewrite / broadcast). The swarm then runs **N configurable revision rounds** (default: 5), each building on the last, with every agent tracking its vote trajectory across all rounds. A confidence-weighted consensus probability, predicted score, and 80% confidence interval emerge — shaped in part by the contrarian agent, which is always guaranteed to be in the pool.
 
-The consensus is compared to Polymarket — either a live match market or a head-to-head probability derived from tournament winner markets. If the spread exceeds 8 percentage points, SwarmCast places a limit order.
+The consensus is compared side-by-side to Polymarket — either a live match market when available, or a head-to-head probability derived from live tournament winner markets. If the spread exceeds 8 percentage points, SwarmCast places a limit order. Every inference call is traced in W&B Weave. A built-in backtest loop runs SwarmCast against 2022 World Cup matches — comparing predictions to known outcomes and building the labeled dataset for v2 fine-tuning on CoreWeave.
 
-Every call is traced in W&B Weave. Resolved matches become training samples for v2.
+### Key Features
 
-### Why This Is Interesting
+- **N-agent, N-round deliberation** — the number of specialist agents and revision rounds are both configurable (`deliberation_rounds = 5` default). Not a fixed 2-round pipeline — a genuine iterative swarm.
+- **Guaranteed contrarian** — `ensure_contrarian()` is called after spawning and after every critic action. The pool always contains a structurally biased dissenter.
+- **Multi-round vote tracking** — every agent's vote is tracked across all rounds. The UI shows the full trajectory: R1 → R2 → ... → RN, with flip detection and confidence delta per agent.
+- **MCP tools baked into agents** — specialists call `wc26-mcp` and `@zafronix/wc-mcp` directly as LangChain tools. Disk-cached for resilience across server restarts.
+- **Self-improving critic loop** — after round 1, the holistic critic reads the full panel, identifies gaps and groupthink, and the orchestrator spawns new agents, rewrites weak prompts, or broadcasts gap signals before the revision rounds.
+- **2022 WC backtest** — `backend/eval/` runs SwarmCast against completed 2022 matches with known outcomes. Results persisted to disk, accessible at `/history`. This is the closed-loop evaluation that produces the training signal.
+- **Falsifiable claim** — predicted score, win probability, confidence interval, minority dissent report, and explicit spread against Polymarket. Verifiable against 2022 history now, 2026 results in June.
+- **Polymarket always visible** — pre-tournament, live winner market odds ($517M volume) are converted to head-to-head probability so the comparison is never empty.
 
-- **Genuine multi-agent orchestration** — 8 specialist agents with distinct roles, running in parallel via `asyncio.gather`. Not a single model with tools.
-- **LangGraph Swarm for Delphi** — round 2 runs each specialist in its own LangGraph ReAct agent thread, preventing context blowup and enabling true per-agent deliberation.
-- **MCP tools baked into agents** — specialists call wc26-mcp and @zafronix/wc-mcp directly as LangChain tools. Agents actively fetch their own data rather than receiving pre-injected context.
-- **Self-improving critic loop** — the critic identifies coverage gaps and groupthink, the orchestrator spawns new agents or rewrites prompts, the swarm improves.
-- **Falsifiable claim** — the output is a predicted score, a probability, a confidence interval, a minority dissent report, and an explicit spread against Polymarket. Verifiable in June.
-- **Polymarket always shows** — pre-tournament, winner market odds (live $517M) are converted to head-to-head probability so the comparison is never empty.
+### Specialist Agents
+
+`tactical_analyst` · `historical_stats` · `current_form` · `squad_fitness` · `tournament_context` · `set_piece_specialist` · `psychological_analyst` · `contrarian`
+
+### Adversarial Design — The Contrarian and the Critic
+
+SwarmCast has two built-in mechanisms against consensus bias. Together they function as the system's immune system.
+
+**The Contrarian** is the only agent with a guaranteed structural role in every swarm. `ensure_contrarian()` is called twice — once after the orchestrator spawns the initial pool, and again after every critic action. It cannot be pruned, cannot be skipped, and holds the widest tool access of any specialist (all profile, form, and history tools) precisely so it has no excuse for missing the underdog case. Its job is to surface the single most credible mechanism for an upset, and it is structurally biased against the favourite to do so. In practice, it is the primary source of minority dissent and the main reason the confidence interval doesn't collapse to a point estimate.
+
+**The Holistic Critic** does not challenge individual agents. It reads the full panel as one unified document and asks a different question: *what is this collective blind to about this specific match?* It returns three outputs — coverage gaps (topics no agent analyzed), groupthink signals (agents converging without independent evidence), and recommended actions. The orchestrator then acts structurally: spawning new agents for identified gaps, rewriting prompts for agents exhibiting groupthink, or broadcasting gap signals to the full pool before the next revision round. This is what makes the system self-improving rather than a static ensemble.
+
+**How the system adapts:** after the critic fires, the swarm is not the same swarm that ran round 1. Prompts have been rewritten. New agents may have joined. The gap signal has been injected. Revision rounds 2..N run on this evolved pool — which is why later rounds often show meaningful probability shifts from agents that updated based on the new context, not just anchoring.
+
+### Edge Detection — A Note on Bet Placement
+
+SwarmCast computes the spread between its consensus probability and the Polymarket implied price. When the spread exceeds the configured threshold, it displays an edge badge and flags the opportunity. **Actual order placement via the CLOB API is not wired through in this demo.** The `place_limit_order()` function exists in the codebase but raises `NotImplementedError` by design.
+
+This is intentional. The ability for agentic systems to autonomously execute financial transactions — including trades on prediction markets — sits in a legally ambiguous and rapidly evolving space. Depending on jurisdiction, such activity may be subject to securities regulation, gambling law, or financial services licensing requirements. Some US states explicitly restrict or prohibit participation in prediction markets for their residents, and federal treatment of blockchain-based prediction markets remains unsettled. The edge detection and spread calculation are the meaningful demonstration — the mechanics of a limit order are straightforward to wire once the legal context is established.
+
+### Visualization
+
+p5.js Boids — 25 fish per specialist school (200 fish total for 8 agents). Each school is color-coded with a centroid speech bubble showing role name and focus area. Per-fish randomisation (speed, turn rate, hue drift, size, wander offset) keeps schools lively. Phase transitions driven by WebSocket events mirror the deliberation state: idle → deliberating (chaos) → critic (turbulence) → delphi (partial alignment) → consensus (lock).
+
+### Output
+
+Predicted score · SwarmCast probability **VS** Polymarket implied probability · Edge badge (pp spread + hover tooltip explaining the calculation) · Aggregate agent table with round 1 → round 2 deltas, key signals, and full reasoning per agent.
 
 ---
 
@@ -36,10 +64,12 @@ match_query + team_a + team_b
         │
         ▼
 [MCP Context]  wc26-mcp + @zafronix/wc-mcp — 13 parallel calls via asyncio.gather
+               Results disk-cached for resilience across restarts
         │
         ▼
 [Meta-Orchestrator]  Qwen3-14B via W&B Inference
-  → writes 8 specialist definitions (role, focus, system_prompt, data_slice_id)
+  → writes N specialist definitions (role, focus, system_prompt, data_slice_id)
+  → ensure_contrarian() guarantees dissenter is always present
         │
         ▼
 [Specialist Swarm — Round 1]  asyncio.gather, full isolation
@@ -52,14 +82,17 @@ match_query + team_a + team_b
         │
         ▼
 [Orchestrator acts]  spawn / rewrite / broadcast
+  → ensure_contrarian() called again after critic actions
         │
         ▼
-[Delphi Round 2]  LangGraph Swarm — one ReAct agent thread per specialist
-  → agents see aggregate P distribution only (no reasoning chains)
-  → each submits a revised vote
+[Revision Rounds 2..N]  configurable (default N=5)
+  → each round: run_revision_round() — agents see aggregate P only
+  → all round votes tracked: round_votes: list[list[AgentVote]]
+  → flip detection + confidence delta computed per agent per round
         │
         ▼
 [Consensus]  confidence-weighted P + 80% CI + minority dissent
+             score consensus from all final votes
         │
         ▼
 [Polymarket Validation]  first and only contact with Polymarket
@@ -67,7 +100,7 @@ match_query + team_a + team_b
   → edge = |SwarmCast P − market P|; if > 8pp → CLOB limit order
         │
         ▼
-[Output]  consensus tile + VS Polymarket + agent aggregate table
+[Output]  consensus tile + VS Polymarket + full round history table
 ```
 
 ### 2.2 Inference Layer
@@ -99,7 +132,97 @@ Specialists call live data as LangChain tools defined in `backend/agents/mcp_too
 
 ---
 
-## 3. Data Sources
+## 3. The Loops
+
+SwarmCast has three distinct feedback loops operating at different timescales. Together they are what make the system self-improving rather than a one-shot pipeline.
+
+### Loop 1 — Deliberation (seconds)
+
+The core round-trip: specialist agents form independent opinions → critic reads the full panel → orchestrator acts → Delphi round 2. This loop runs once per forecast and produces the consensus. It is visible in real time as the fish schools go from chaotic to aligned.
+
+```
+Round 1 votes
+    → Critic (coverage gaps + groupthink)
+    → Orchestrator (spawn / rewrite / broadcast)
+    → Round 2 votes (LangGraph Swarm)
+    → Consensus
+```
+
+### Loop 2 — Backtest Evaluation (runs now against 2022 data)
+
+`backend/eval/` runs SwarmCast against completed 2022 World Cup matches with known outcomes. The backtest samples matches from `@zafronix/wc-mcp`, runs the full deliberation pipeline, and compares the consensus to the actual result. Results are persisted to disk (`wc2022_match_cache.json`) and accessible at `/history` in the UI.
+
+This is not a future feature — it runs today. Every backtest run produces labeled traces in W&B Weave.
+
+```
+2022 WC matches (known outcomes)
+    → run_deliberation() for each match
+    → judge_prediction(consensus, actual_winner)
+    → Labeled Weave trace (correct / incorrect / edge)
+    → /history page shows swarm accuracy across matches
+```
+
+### Loop 3 — Market Feedback (hours, post-June 11)
+
+After a 2026 match resolves, the ground truth is labeled on the live forecast trace. Combined with backtest traces, this builds the training dataset.
+
+```
+Live forecast + bet
+    → Match resolves June 11+
+    → label_trace(call_id, outcome)
+    → Merged with backtest traces → full labeled dataset
+```
+
+### Loop 4 — Model Improvement (CoreWeave fine-tuning)
+
+With labeled traces from both backtest and live forecasts, specialist models are fine-tuned on CoreWeave. Agents that consistently underperformed — high round-to-round deltas, high uncertainty flags, wrong direction vs ground truth — are prioritized for retraining.
+
+```
+Labeled Weave traces (backtest + live)
+    → Identify underperforming specialist patterns
+    → Fine-tune on CoreWeave GPUs
+    → Redeploy smarter specialists for next match
+```
+
+---
+
+## 4. W&B Weave — Observability Layer
+
+Weave is not an afterthought. It is instrumented from the first line of the pipeline and is the mechanism that makes all three loops computable.
+
+### What is traced
+
+Every function decorated with `@weave.op()` is captured as a Weave call with full input/output, latency, and model metadata:
+
+| Function | What Weave captures |
+|---|---|
+| `spawn_specialists` | Match question → specialist definitions (role, focus, prompts) |
+| `run_specialist` | System prompt + MCP context → vote (score, probability, reasoning) |
+| `run_critic` | Full panel → coverage gaps, groupthink signals, recommended actions |
+| `run_delphi_round` | R1 aggregate + specialist prompts → R2 votes per agent |
+| `aggregate` | All votes → consensus P, CI, minority dissent |
+| `run_market_validation` | Consensus P → Polymarket snapshot, spread, edge decision, bet receipt |
+| `run_forecast_pipeline` | Full pipeline trace, end-to-end |
+
+### What Weave enables
+
+**Real-time debugging** — during the hackathon, every agent call is inspectable in the Weave dashboard at `wandb.ai/ceatp-ceatp/swarmcast/weave`. If an agent returns garbage, you see the exact prompt, the exact output, and the parse result.
+
+**Agent comparison** — which specialist moved the most between R1 and R2? Which was the minority dissenter? Weave makes these comparisons immediate.
+
+**Ground truth labeling** — after a match resolves, `label_trace(call_id, outcome)` attaches the result to the pipeline trace. This is the bridge from observability to training data.
+
+**Dataset for v2** — every labeled pipeline trace is a (question, agent_outputs, consensus, outcome) training example. The dataset builds automatically as matches resolve through June and July.
+
+### Weave dashboard URL
+
+```
+https://wandb.ai/ceatp-ceatp/swarmcast/weave
+```
+
+---
+
+## 5. Data Sources
 
 > **Critical constraint:** No source publishing betting odds, prediction market prices, or bookmaker lines is permitted in the deliberation layer.
 
