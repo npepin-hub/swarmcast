@@ -20,11 +20,12 @@ Each beat in the script below includes a `[TEXT OVERLAY]` line — the exact tex
 A GIF lives in the README. No narration — the overlays carry the story.
 
 ### Setup before recording
-- Window size: **1280 × 800**
+- **Record full screen** — do not crop to a fixed window, the page scrolls vertically and content will be cut off
+- Browser: Chrome or Safari, **zoom at 90%** (`Cmd -`) so the bracket fits without horizontal scroll
 - SwarmCast at `http://localhost:8000` — fully loaded, bracket visible
 - "Who wins?" already active
 - Group A tile in view — Mexico vs South Africa row visible
-- Use **Kap**, **GIPHY Capture**, or `screencapture -d`
+- Use **Kap** (full screen mode) or **GIPHY Capture**
 - Run the pipeline once before to warm the cache
 
 ### Shot sequence
@@ -54,6 +55,8 @@ A GIF lives in the README. No narration — the overlays carry the story.
 ## PART 2 — LOOM VIDEO (~90 seconds, with narration + overlays)
 
 ### Setup before recording
+- **Record full screen** — the page scrolls through multiple sections; a cropped window will cut content
+- Browser zoom at **90%** (`Cmd -`) — fits the bracket without horizontal scroll
 - SwarmCast at `http://localhost:8000`
 - Polymarket tab ready: `https://polymarket.com/sports/world-cup/fifwc-mex-rsa-2026-06-11`
 - "Who wins?" question card active

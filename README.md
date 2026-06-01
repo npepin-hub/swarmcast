@@ -147,17 +147,13 @@ open http://localhost:8000/history
 
 ## Endpoints
 
-| Path | Requires | What it does |
-|------|----------|-------------|
-| `GET /` | Node.js (npx) | Frontend — bracket loads from `wc26-mcp` |
-| `GET /history` | nothing | 2022 WC backtest UI — works from disk cache, no keys needed |
-| `WS /history/ws` | `WANDB_API_KEY` | Runs a live backtest evaluation against 2022 matches |
-| `POST /forecast` | `WANDB_API_KEY` + Node.js | Full live swarm pipeline — requires inference credentials |
-| `WS /ws` | `WANDB_API_KEY` | Streams real-time agent events during `/forecast` |
-| `GET /matches` | Node.js (npx) | WC 2026 bracket data for the frontend |
-| `GET /health` | nothing | Health check |
+All routes require `WANDB_API_KEY` (Weave init at startup) and `WC_API_KEY` (historical MCP data).
 
-`/history` is the only endpoint that works fully offline — it reads from the disk cache at `backend/eval/wc2022_match_cache.json`. Everything else requires `WANDB_API_KEY` set in `.env`.
+| Path | Also requires | What it does |
+|------|--------------|-------------|
+| `GET /` | Node.js (npx) | Frontend — bracket loads from `wc26-mcp` |
+| `GET /history` | — | 2022 WC backtest UI — serves from disk cache |
+| `GET /health` | — | Health check |
 
 ## Project structure
 
